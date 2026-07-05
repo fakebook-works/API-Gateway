@@ -1,0 +1,17 @@
+{
+  "name": "Authentication",
+  "transports": {
+    "http": {
+      "url": "{{AUTHENTICATION_URL}}",
+      "clientName": "auth-fusion"
+    }
+  },
+  "environments": {
+    "Development": {
+      "AUTHENTICATION_URL": "http://localhost:5001/graphql"
+    },
+    "Production": {
+      "AUTHENTICATION_URL": "http://authentication/graphql"
+    }
+  }
+}

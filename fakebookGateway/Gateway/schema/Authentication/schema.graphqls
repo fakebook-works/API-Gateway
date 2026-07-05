@@ -1,0 +1,182 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  health: String!
+  me: UserType! @cost(weight: "10")
+  mySessions: [SessionType!]! @cost(weight: "10")
+  mySessionHistory: [SessionType!]! @cost(weight: "10")
+  validateGatewaySession(input: GatewaySessionValidationInput!): GatewaySessionValidationPayload!
+    @cost(weight: "10")
+}
+
+type Mutation {
+  register(input: RegisterInput!): RegisterPayload! @cost(weight: "10")
+  verifyEmail(input: VerifyEmailInput!): VerifyEmailPayload! @cost(weight: "10")
+  login(input: LoginInput!): LoginPayload! @cost(weight: "10")
+  refreshToken(input: RefreshTokenInput): LoginPayload! @cost(weight: "10")
+  logout(input: LogoutInput): AuthActionPayload! @cost(weight: "10")
+  logoutAll: AuthActionPayload! @cost(weight: "10")
+  logoutSession(input: LogoutSessionInput!): AuthActionPayload!
+    @cost(weight: "10")
+  resendEmailVerification(input: ResendEmailVerificationInput!): AuthActionPayload!
+    @cost(weight: "10")
+  requestPasswordReset(input: RequestPasswordResetInput!): AuthActionPayload!
+    @cost(weight: "10")
+  resetPassword(input: ResetPasswordInput!): AuthActionPayload!
+    @cost(weight: "10")
+  changePassword(input: ChangePasswordInput!): AuthActionPayload!
+    @cost(weight: "10")
+}
+
+type AuthActionPayload {
+  success: Boolean!
+  message: String
+  refreshTokenCookie: GatewayCookieInstruction
+}
+
+type GatewayCookieInstruction {
+  operation: String!
+  name: String!
+  value: String
+  path: String!
+  sameSite: String!
+  httpOnly: Boolean!
+  secure: Boolean!
+  maxAgeSeconds: Int!
+  expiresAt: DateTime
+}
+
+type GatewaySessionValidationPayload {
+  isValid: Boolean!
+  userId: Long
+  sessionId: Long
+  username: String
+  status: Short
+  expiresAt: DateTime
+}
+
+type LoginPayload {
+  accessToken: String!
+  refreshToken: String!
+  refreshTokenExpiresAt: DateTime
+  refreshTokenCookie: GatewayCookieInstruction!
+  user: UserType!
+}
+
+type RegisterPayload {
+  success: Boolean!
+  message: String
+}
+
+type SessionType {
+  sessionId: Long!
+  deviceName: String
+  os: String
+  browser: String
+  ipAddress: String
+  expiresAt: DateTime
+  createdAt: DateTime
+  lastSeenAt: DateTime
+  revocationReason: String
+  revokedAt: DateTime
+  isCurrent: Boolean!
+}
+
+type UserType {
+  userId: Long!
+  email: String!
+  username: String!
+  dob: Date
+  displayName: String!
+  status: Short!
+}
+
+type VerifyEmailPayload {
+  success: Boolean!
+  message: String
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input GatewaySessionValidationInput {
+  userId: Long!
+  sessionId: Long!
+}
+
+input LoginInput {
+  identifier: String!
+  password: String!
+}
+
+input LogoutInput {
+  refreshToken: String
+}
+
+input LogoutSessionInput {
+  sessionId: Long!
+}
+
+input RefreshTokenInput {
+  refreshToken: String
+}
+
+input RegisterInput {
+  displayName: String!
+  dob: Date
+  email: String!
+  username: String!
+  password: String!
+}
+
+input RequestPasswordResetInput {
+  identifier: String!
+}
+
+input ResendEmailVerificationInput {
+  identifier: String!
+}
+
+input ResetPasswordInput {
+  identifier: String!
+  otp: String!
+  newPassword: String!
+}
+
+input VerifyEmailInput {
+  identifier: String!
+  otp: String!
+}
+
+"The `Date` scalar type represents a date in UTC."
+scalar Date
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date.html")
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
+"The `Long` scalar type represents a signed 64-bit integer."
+scalar Long
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
+
+"The `Short` scalar type represents a signed 16-bit integer."
+scalar Short
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/short.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
