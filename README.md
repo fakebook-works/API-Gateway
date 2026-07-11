@@ -2,7 +2,7 @@
 
 Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 8 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
 
-The current composed subgraph is `Authentication`. Planned subgraphs include `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, and `Media`.
+The currently composed subgraphs are `Authentication` and `SocialGraph`. Only the canonical `createUser` registration mutation is exposed from SocialGraph for now. Planned subgraphs include `Search`, `Recommendation`, `Messaging`, `Notification`, and `Media`.
 
 ## Features
 
@@ -10,6 +10,7 @@ The current composed subgraph is `Authentication`. Planned subgraphs include `Se
 - HotChocolate Fusion composition through `fakebookGateway/gateway.far`.
 - JWT access-token validation at the Gateway.
 - Session validation against the Authentication subgraph.
+- Canonical user registration through SocialGraph, followed by internal Authentication identity creation with the same user ID.
 - Trusted internal header forwarding to subgraphs.
 - HttpOnly refresh-cookie handling for login, refresh, logout, and logout-all flows.
 - Public response scrubbing for raw refresh-token values.
@@ -20,7 +21,8 @@ The current composed subgraph is `Authentication`. Planned subgraphs include `Se
 - .NET SDK 8.x for local development.
 - Docker, if running the container image.
 - A running Authentication subgraph, usually at `http://localhost:5001/graphql`.
-- JWT settings and `Gateway:InternalSharedSecret` must match the Authentication service.
+- A running SocialGraph subgraph, usually at `http://localhost:5223/graphql`.
+- JWT settings must match Authentication. `Gateway:InternalSharedSecret` must be the same in Gateway, SocialGraph, and Authentication so SocialGraph can use Auth's protected internal API.
 
 ## Configuration
 
@@ -41,7 +43,7 @@ Subgraphs__Authentication__Url=http://localhost:5001/graphql
 
 ## Run Locally
 
-Start the Authentication subgraph first, then run the Gateway:
+Start the Authentication and SocialGraph subgraphs first, then run the Gateway:
 
 ```powershell
 dotnet restore .\fakebookGateway.sln
@@ -63,6 +65,35 @@ Gateway endpoint:
 http://localhost:5099/graphql
 ```
 
+## User Registration
+
+The public registration entry point is SocialGraph's `createUser`. The legacy Authentication `register` mutation is internal in the Gateway composition to prevent Auth-only users.
+
+```graphql
+mutation CreateUser($input: CreateUserInput!) {
+  createUser(input: $input) {
+    success
+    userId
+    message
+  }
+}
+```
+
+```json
+{
+  "input": {
+    "name": "Nguyen Van A",
+    "gender": true,
+    "birthdate": "2000-01-01",
+    "location": "Ha Noi",
+    "email": "a@example.com",
+    "password": "secret123"
+  }
+}
+```
+
+On success, SocialGraph owns the generated canonical user ID and Authentication stores its identity record with that exact ID.
+
 ## Run With Docker
 
 A prebuilt image is available:
@@ -77,7 +108,7 @@ docker run --rm -p 5099:8080 `
   ghcr.io/fakebook-works/api-gateway:main
 ```
 
-Important: Fusion subgraph transport URLs are stored in `gateway.far`. The current development archive points Authentication to `http://localhost:5001/graphql`. For Docker deployments, make sure the archive was composed with an Auth URL reachable from inside the container, such as the production service name `http://authentication/graphql`, or recompose `gateway.far` for your Docker network before building the image.
+Important: Fusion subgraph transport URLs are stored in `gateway.far`. The current development archive points Authentication to `http://localhost:5001/graphql` and SocialGraph to `http://localhost:5223/graphql`. For Docker deployments, recompose `gateway.far` with transport URLs reachable inside the container network.
 
 Build locally instead:
 
@@ -106,6 +137,7 @@ Recompose the Fusion archive after schema changes:
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --archive .\gateway.far `
   --env Development
 ```

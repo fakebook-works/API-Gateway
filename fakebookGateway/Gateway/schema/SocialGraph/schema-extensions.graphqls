@@ -1,0 +1,55 @@
+extend type Query {
+  object(id: Long!): SocialGraphObjectResult @internal
+  association(id1: Long!, atype: Short!, cursor: String, limit: Int!): AssociationPageResult! @internal
+  associationCount(id1: Long!, atype: Short!): Long! @internal
+  profile(userId: Long!): UserProfileResult @internal
+  group(groupId: Long!): GroupResult @internal
+  content(contentId: Long!): ContentResult @internal
+  relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]! @internal
+  postCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]! @internal
+  reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]! @internal
+  _service: _Service! @internal
+}
+
+extend type Mutation {
+  addObject(otype: Short!, dataJson: String!): SocialGraphObjectResult! @internal
+  updateObject(id: Long!, otype: Short!, patchJson: String!): SocialGraphObjectResult @internal
+  deleteObject(id: Long!): Boolean! @internal
+  addAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean! @internal
+  deleteOneAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean! @internal
+  deleteAllAssociation(id1: Long!, atype: Short!): Boolean! @internal
+  updateUser(input: UpdateUserInput!): UserProfileResult @internal
+  deleteUser(userId: Long!): Boolean! @internal
+  changeUserAvatar(userId: Long!, avatarUrl: String!, originalUrl: String): UserProfileResult @internal
+  changeUserBackground(userId: Long!, backgroundUrl: String!, originalUrl: String): UserProfileResult @internal
+  sendFriendRequest(requesterId: Long!, receiverId: Long!): Boolean! @internal
+  acceptFriendRequest(requesterId: Long!, receiverId: Long!): Boolean! @internal
+  followUser(followerId: Long!, targetUserId: Long!): Boolean! @internal
+  unfollowUser(followerId: Long!, targetUserId: Long!): Boolean! @internal
+  blockUser(blockerId: Long!, blockedUserId: Long!): Boolean! @internal
+  unblockUser(blockerId: Long!, blockedUserId: Long!): Boolean! @internal
+  createGroup(input: CreateGroupInput!): GroupResult! @internal
+  updateGroup(input: UpdateGroupInput!): GroupResult @internal
+  deleteGroup(groupId: Long!): Boolean! @internal
+  changeGroupAvatar(groupId: Long!, avatarUrl: String!): GroupResult @internal
+  changeGroupBackground(groupId: Long!, backgroundUrl: String!, originalUrl: String): GroupResult @internal
+  addGroupMember(groupId: Long!, userId: Long!): Boolean! @internal
+  removeGroupMember(groupId: Long!, userId: Long!): Boolean! @internal
+  addGroupAdmin(groupId: Long!, userId: Long!): Boolean! @internal
+  removeGroupAdmin(groupId: Long!, userId: Long!): Boolean! @internal
+  createFeedPost(input: CreateFeedPostInput!): ContentResult! @internal
+  createGroupPost(input: CreateGroupPostInput!): ContentResult! @internal
+  updatePost(input: UpdatePostInput!): ContentResult @internal
+  deleteContent(contentId: Long!): Boolean! @internal
+  createComment(input: CreateCommentInput!): ContentResult! @internal
+  createStory(input: CreateStoryInput!): ContentResult! @internal
+  createReel(input: CreateReelInput!): ContentResult! @internal
+  sharePost(input: SharePostInput!): ContentResult! @internal
+  like(userId: Long!, targetId: Long!): Boolean! @internal
+  unlike(userId: Long!, targetId: Long!): Boolean! @internal
+  save(userId: Long!, targetId: Long!): Boolean! @internal
+  unsave(userId: Long!, targetId: Long!): Boolean! @internal
+  watch(userId: Long!, targetId: Long!): Boolean! @internal
+  tag(postId: Long!, userId: Long!): Boolean! @internal
+  mention(sourceId: Long!, userId: Long!): Boolean! @internal
+}

@@ -1,0 +1,17 @@
+{
+  "name": "SocialGraph",
+  "transports": {
+    "http": {
+      "url": "{{SOCIALGRAPH_URL}}",
+      "clientName": "fusion"
+    }
+  },
+  "environments": {
+    "Development": {
+      "SOCIALGRAPH_URL": "http://localhost:5223/graphql"
+    },
+    "Production": {
+      "SOCIALGRAPH_URL": "http://socialgraph/graphql"
+    }
+  }
+}

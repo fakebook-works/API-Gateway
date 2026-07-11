@@ -1,0 +1,293 @@
+schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.6"
+    import: ["@tag", "FieldSet"]
+  ) {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  object(id: Long!): SocialGraphObjectResult @cost(weight: "10")
+  association(id1: Long!, atype: Short!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  associationCount(id1: Long!, atype: Short!): Long! @cost(weight: "10")
+  profile(userId: Long!): UserProfileResult @cost(weight: "10")
+  group(groupId: Long!): GroupResult @cost(weight: "10")
+  content(contentId: Long!): ContentResult @cost(weight: "10")
+  relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]!
+    @cost(weight: "10")
+  postCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
+    @cost(weight: "10")
+  reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
+    @cost(weight: "10")
+  _service: _Service!
+}
+
+type Mutation {
+  addObject(otype: Short!, dataJson: String!): SocialGraphObjectResult!
+    @cost(weight: "10")
+  updateObject(id: Long!, otype: Short!, patchJson: String!): SocialGraphObjectResult
+    @cost(weight: "10")
+  deleteObject(id: Long!): Boolean! @cost(weight: "10")
+  addAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean!
+    @cost(weight: "10")
+  deleteOneAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean!
+    @cost(weight: "10")
+  deleteAllAssociation(id1: Long!, atype: Short!): Boolean! @cost(weight: "10")
+  createUser(input: CreateUserInput!): CreateUserPayload! @cost(weight: "10")
+  updateUser(input: UpdateUserInput!): UserProfileResult @cost(weight: "10")
+  deleteUser(userId: Long!): Boolean! @cost(weight: "10")
+  changeUserAvatar(userId: Long!, avatarUrl: String!, originalUrl: String): UserProfileResult
+    @cost(weight: "10")
+  changeUserBackground(
+    userId: Long!
+    backgroundUrl: String!
+    originalUrl: String
+  ): UserProfileResult @cost(weight: "10")
+  sendFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
+    @cost(weight: "10")
+  acceptFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
+    @cost(weight: "10")
+  followUser(followerId: Long!, targetUserId: Long!): Boolean!
+    @cost(weight: "10")
+  unfollowUser(followerId: Long!, targetUserId: Long!): Boolean!
+    @cost(weight: "10")
+  blockUser(blockerId: Long!, blockedUserId: Long!): Boolean!
+    @cost(weight: "10")
+  unblockUser(blockerId: Long!, blockedUserId: Long!): Boolean!
+    @cost(weight: "10")
+  createGroup(input: CreateGroupInput!): GroupResult! @cost(weight: "10")
+  updateGroup(input: UpdateGroupInput!): GroupResult @cost(weight: "10")
+  deleteGroup(groupId: Long!): Boolean! @cost(weight: "10")
+  changeGroupAvatar(groupId: Long!, avatarUrl: String!): GroupResult
+    @cost(weight: "10")
+  changeGroupBackground(
+    groupId: Long!
+    backgroundUrl: String!
+    originalUrl: String
+  ): GroupResult @cost(weight: "10")
+  addGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+  removeGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+  addGroupAdmin(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+  removeGroupAdmin(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+  createFeedPost(input: CreateFeedPostInput!): ContentResult!
+    @cost(weight: "10")
+  createGroupPost(input: CreateGroupPostInput!): ContentResult!
+    @cost(weight: "10")
+  updatePost(input: UpdatePostInput!): ContentResult @cost(weight: "10")
+  deleteContent(contentId: Long!): Boolean! @cost(weight: "10")
+  createComment(input: CreateCommentInput!): ContentResult! @cost(weight: "10")
+  createStory(input: CreateStoryInput!): ContentResult! @cost(weight: "10")
+  createReel(input: CreateReelInput!): ContentResult! @cost(weight: "10")
+  sharePost(input: SharePostInput!): ContentResult! @cost(weight: "10")
+  like(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  unlike(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  save(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  unsave(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  watch(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  tag(postId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+  mention(sourceId: Long!, userId: Long!): Boolean! @cost(weight: "10")
+}
+
+"This type provides a field named sdl: String! which exposes the SDL of the service's schema. This SDL (schema definition language) is a printed version of the service's schema including the annotations of federation directives. This SDL does not include the additions of the federation spec."
+type _Service {
+  sdl: String!
+}
+
+type AssociationEdgeResult {
+  id2: Long!
+  time: Long!
+}
+
+type AssociationPageResult {
+  items: [AssociationEdgeResult!]!
+  nextCursor: String
+}
+
+type CandidateItemResult {
+  id: Long!
+  authorId: Long!
+  source: String!
+  createdAt: String!
+}
+
+type ContentResult {
+  id: Long!
+  type: Short!
+  content: String!
+  privacy: Int!
+  create: String!
+  authorId: Long!
+  media: [MediaResult!]!
+}
+
+type CreateUserPayload {
+  success: Boolean!
+  userId: Long
+  message: String
+}
+
+type GroupResult {
+  id: Long!
+  avatar: String!
+  background: String!
+  name: String!
+  bio: String!
+  privacy: Int!
+  create: String!
+  memberCount: Long!
+  adminCount: Long!
+}
+
+type MediaResult {
+  id: Long!
+  type: Int!
+  url: String!
+}
+
+type SocialGraphObjectResult {
+  id: Long!
+  otype: Short!
+  data: String!
+}
+
+type UserProfileResult {
+  id: Long!
+  avatar: String!
+  background: String!
+  name: String!
+  bio: String!
+  gender: Int!
+  birthdate: String!
+  location: String!
+  privacy: Int!
+  create: String!
+  verify: String!
+  isVerified: Boolean!
+  friendCount: Long!
+  followerCount: Long!
+  followingCount: Long!
+}
+
+input CreateCommentInput {
+  authorId: Long!
+  targetId: Long!
+  content: String!
+}
+
+input CreateFeedPostInput {
+  authorId: Long!
+  content: String!
+  privacy: Int!
+  media: [MediaInput!]
+}
+
+input CreateGroupInput {
+  creatorId: Long!
+  name: String!
+  bio: String
+  privacy: Int!
+  avatar: String
+  background: String
+}
+
+input CreateGroupPostInput {
+  authorId: Long!
+  groupId: Long!
+  content: String!
+  media: [MediaInput!]
+}
+
+input CreateReelInput {
+  authorId: Long!
+  content: String!
+  media: MediaInput
+}
+
+input CreateStoryInput {
+  authorId: Long!
+  content: String!
+  media: MediaInput
+}
+
+input CreateUserInput {
+  name: String!
+  gender: Boolean!
+  birthdate: String!
+  location: String!
+  email: String!
+  password: String!
+}
+
+input MediaInput {
+  type: Int!
+  url: String!
+}
+
+input SharePostInput {
+  authorId: Long!
+  sourceId: Long!
+  content: String!
+  privacy: Int!
+}
+
+input UpdateGroupInput {
+  id: Long!
+  avatar: String
+  background: String
+  name: String
+  bio: String
+  privacy: Int
+}
+
+input UpdatePostInput {
+  id: Long!
+  privacy: Int!
+}
+
+input UpdateUserInput {
+  id: Long!
+  avatar: String
+  background: String
+  name: String
+  bio: String
+  gender: Boolean
+  birthdate: String
+  location: String
+  privacy: Int
+}
+
+"The _Any scalar is used to pass representations of entities from external services into the root _entities field for execution. Validation of the _Any scalar is done by matching the __typename and @external fields defined in the schema."
+scalar _Any
+
+"Scalar representing a set of fields."
+scalar FieldSet
+
+"The `Long` scalar type represents a signed 64-bit integer."
+scalar Long
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
+
+"The `Short` scalar type represents a signed 16-bit integer."
+scalar Short
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/short.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
+
+"Links definitions within the document to external schemas."
+directive @link(
+  "Gets imported specification url."
+  url: String!
+  "Gets optional list of imported element names."
+  import: [String!]
+) repeatable on SCHEMA

@@ -11,8 +11,8 @@ The Gateway is the public GraphQL entry point for the frontend. It composes mult
 - Main public endpoint: `/graphql`.
 - Root route: `/` redirects to `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Current composed subgraph: `Authentication`.
-- Planned subgraphs: `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`.
+- Current composed subgraphs: `Authentication` and `SocialGraph`.
+- Planned subgraphs: `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validates JWT locally and validates active session status with the Authentication subgraph.
 - Refresh token model: Gateway owns browser cookies. Auth returns cookie instructions; Gateway applies them and scrubs raw refresh token values from public GraphQL responses.
 
@@ -22,7 +22,8 @@ Current capabilities:
 
 - Expose a single public GraphQL endpoint for frontend clients.
 - Load a Fusion archive from disk with `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations to the Authentication subgraph.
+- Proxy GraphQL operations to the Authentication and SocialGraph subgraphs.
+- Expose SocialGraph `createUser` as the canonical public registration mutation.
 - Validate HS256 JWT access tokens using configured issuer, audience, and signing key.
 - Validate access-token session state against Auth through the internal `validateGatewaySession` query.
 - Cache Auth session validation results for a short configurable TTL.
@@ -47,7 +48,7 @@ Current capabilities:
 
 Current limitations:
 
-- Only Authentication is currently composed in `gateway.far`.
+- Only `createUser` is currently public from SocialGraph; its remaining fields are composition-internal until authorization is implemented.
 - There is no permanent automated test project yet.
 - Fusion composition is currently a manual local workflow.
 - The Gateway does not currently implement field-level authorization rules. Subgraphs must protect their own private operations using the internal headers and `X-Gateway-Secret`, or the Gateway must be extended with field policy before exposing sensitive fields from a weak subgraph.
@@ -99,7 +100,7 @@ Required Gateway configuration:
 Gateway__InternalSharedSecret
 ```
 
-The internal shared secret must match the Authentication subgraph `Gateway:InternalSharedSecret`. Use at least 32 bytes even though the Gateway currently validates only non-empty value.
+The internal shared secret must match `Gateway:InternalSharedSecret` in Authentication and SocialGraph. SocialGraph uses it when calling Auth's protected `/internal/users` API. Use at least 32 bytes even though the Gateway currently validates only a non-empty value.
 
 Useful environment variables:
 
@@ -281,7 +282,7 @@ Implementation notes:
 
 ## Current Public GraphQL Surface
 
-The currently composed public surface comes from Authentication.
+The currently composed public surface comes from Authentication and SocialGraph.
 
 Queries:
 
@@ -295,7 +296,6 @@ mySessionHistory
 Mutations:
 
 ```text
-register
 verifyEmail
 login
 refreshToken
@@ -306,15 +306,17 @@ resendEmailVerification
 requestPasswordReset
 resetPassword
 changePassword
+createUser
 ```
 
-Internal Auth query:
+Internal Auth fields:
 
 ```text
 validateGatewaySession
+register
 ```
 
-`validateGatewaySession` exists in the Authentication source schema but is marked `@internal` in Gateway schema extensions, so it must not be visible in the public Gateway schema.
+`validateGatewaySession` and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`, which creates the canonical user ID and then calls Auth's protected internal REST API with that ID.
 
 ## Fusion Schema Layout
 
@@ -389,6 +391,7 @@ Compose from the `fakebookGateway` directory:
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --archive .\gateway.far `
   --env Development
 ```
@@ -414,6 +417,7 @@ For production composition:
 ```powershell
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --archive .\gateway.far `
   --env Production
 ```
@@ -439,7 +443,7 @@ Run:
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-Example local run with Auth on port `5001` and Gateway on port `5099`:
+Example local run with Auth on port `5001`, SocialGraph on port `5223`, and Gateway on port `5099`:
 
 ```powershell
 $env:ASPNETCORE_URLS="http://localhost:5099"
@@ -451,6 +455,8 @@ $env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
+The Development Fusion archive routes SocialGraph operations to `http://localhost:5223/graphql`, so SocialGraph must be running before testing `createUser` through the Gateway.
+
 GraphQL endpoint:
 
 ```text
@@ -459,7 +465,7 @@ http://localhost:5099/graphql
 
 ## How To Implement A New Subgraph
 
-Use this checklist when adding `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`, or any future subgraph.
+Use this checklist when extending the composed SocialGraph surface or adding `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`, or any future subgraph.
 
 ### 1. Define Ownership
 
@@ -691,6 +697,7 @@ Run `nitro fusion compose` from `fakebookGateway` and include every subgraph fol
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -704,7 +711,7 @@ Pick stable local ports to avoid collisions. Suggested starting points:
 Authentication = 5001
 Gateway = 5099
 Search = 5010
-SocialGraph = 5011
+SocialGraph = 5223
 Recommendation = 5012
 Messaging = 5013
 Notification = 5014
@@ -775,11 +782,12 @@ Testing:
 - Test unauthorized, unauthenticated, and revoked-session paths.
 - Test schema composition after every schema change.
 
-## Planned Subgraph Notes
+## Subgraph Ownership Notes
 
 Authentication:
 
 - Already implemented.
+- Already composed in `gateway.far`.
 - Owns identity, credentials, sessions, OTP, JWT issuing, refresh token rotation, and cookie instruction contract.
 - Exposes `validateGatewaySession` for Gateway internal use.
 
@@ -792,7 +800,8 @@ Search:
 
 SocialGraph:
 
-- Should own friend/follow/block relationships.
+- Already composed in `gateway.far`; only `createUser` is public for now.
+- Owns canonical user IDs, social profiles, and friend/follow/block relationships.
 - Must enforce user ownership and block semantics.
 - Should expose relationship checks needed by other subgraphs only through stable APIs or future events/read models.
 
@@ -822,14 +831,15 @@ Media:
 
 ## Testing Notes
 
-Recent E2E checks covered 53 assertions:
+The historical Auth/Gateway E2E runner covered 53 assertions. The SocialGraph composition was also runtime-smoke-tested separately.
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
 - Auth direct refresh/change password/password reset.
 - Internal `validateGatewaySession` success and wrong-secret failure.
 - Gateway proxy health and public schema checks.
-- Gateway proxy register/resend/verify/login.
+- Gateway proxy createUser/resend/verify/login; legacy Auth `register` is hidden.
+- SocialGraph `createUser` routing, internal-field hiding, and trusted-header forwarding.
 - Gateway sets HttpOnly refresh cookie and strips raw refresh token values.
 - Gateway validates sessions through Auth.
 - Gateway rejects revoked sessions.

@@ -11,8 +11,8 @@ Gateway là public GraphQL entry point cho frontend. Gateway compose nhiều Gra
 - Endpoint public chính: `/graphql`.
 - Route `/` redirect sang `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Subgraph hiện tại đã compose: `Authentication`.
-- Subgraph dự kiến: `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`.
+- Subgraph hiện tại đã compose: `Authentication` và `SocialGraph`.
+- Subgraph dự kiến: `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validate JWT local và validate active session với Authentication subgraph.
 - Refresh token model: Gateway sở hữu browser cookie. Auth trả cookie instruction; Gateway apply instruction và scrub raw refresh token khỏi public GraphQL response.
 
@@ -22,7 +22,8 @@ Capability hiện tại:
 
 - Expose một public GraphQL endpoint duy nhất cho frontend.
 - Load Fusion archive từ file với `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations tới Authentication subgraph.
+- Proxy GraphQL operations tới Authentication và SocialGraph subgraph.
+- Expose SocialGraph `createUser` làm mutation đăng ký public chuẩn.
 - Validate HS256 JWT access token bằng issuer, audience và signing key trong config.
 - Validate session state của access token với Auth qua internal query `validateGatewaySession`.
 - Cache kết quả Auth session validation trong một TTL ngắn.
@@ -47,7 +48,7 @@ Capability hiện tại:
 
 Giới hạn hiện tại:
 
-- Hiện chỉ có Authentication trong `gateway.far`.
+- Hiện chỉ có `createUser` được public từ SocialGraph; các field còn lại là composition-internal cho đến khi có authorization.
 - Chưa có automated test project cố định.
 - Fusion composition hiện là manual local workflow.
 - Gateway chưa implement field-level authorization rule. Subgraph phải tự protect private operations bằng internal headers và `X-Gateway-Secret`, hoặc Gateway cần được mở rộng field policy trước khi expose sensitive fields từ subgraph yếu.
@@ -99,7 +100,7 @@ Gateway config bắt buộc:
 Gateway__InternalSharedSecret
 ```
 
-Internal shared secret phải trùng với `Gateway:InternalSharedSecret` của Authentication subgraph. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
+Internal shared secret phải trùng với `Gateway:InternalSharedSecret` trong Authentication và SocialGraph. SocialGraph dùng secret này khi gọi protected API `/internal/users` của Auth. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
 
 Environment variables hữu ích:
 
@@ -281,7 +282,7 @@ Implementation notes:
 
 ## Public GraphQL Surface Hiện Tại
 
-Public surface hiện tại đến từ Authentication.
+Public surface hiện tại đến từ Authentication và SocialGraph.
 
 Queries:
 
@@ -295,7 +296,6 @@ mySessionHistory
 Mutations:
 
 ```text
-register
 verifyEmail
 login
 refreshToken
@@ -306,15 +306,17 @@ resendEmailVerification
 requestPasswordReset
 resetPassword
 changePassword
+createUser
 ```
 
-Internal Auth query:
+Internal Auth fields:
 
 ```text
 validateGatewaySession
+register
 ```
 
-`validateGatewaySession` tồn tại trong Authentication source schema nhưng được mark `@internal` trong Gateway schema extensions, nên không được xuất hiện trong public Gateway schema.
+`validateGatewaySession` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`; SocialGraph tạo canonical user ID rồi gọi protected internal REST API của Auth với đúng ID đó.
 
 ## Fusion Schema Layout
 
@@ -389,6 +391,7 @@ Compose từ folder `fakebookGateway`:
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --archive .\gateway.far `
   --env Development
 ```
@@ -414,6 +417,7 @@ Compose production:
 ```powershell
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --archive .\gateway.far `
   --env Production
 ```
@@ -439,7 +443,7 @@ Run:
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-Ví dụ local run với Auth port `5001` và Gateway port `5099`:
+Ví dụ local run với Auth port `5001`, SocialGraph port `5223`, và Gateway port `5099`:
 
 ```powershell
 $env:ASPNETCORE_URLS="http://localhost:5099"
@@ -451,6 +455,8 @@ $env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
+Development Fusion archive route SocialGraph tới `http://localhost:5223/graphql`, vì vậy SocialGraph phải chạy trước khi test `createUser` qua Gateway.
+
 GraphQL endpoint:
 
 ```text
@@ -459,7 +465,7 @@ http://localhost:5099/graphql
 
 ## Cách Implement Subgraph Mới
 
-Dùng checklist này khi thêm `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`, hoặc subgraph mới về sau.
+Dùng checklist này khi mở rộng surface SocialGraph đã compose hoặc thêm `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`, hay subgraph mới về sau.
 
 ### 1. Định Nghĩa Ownership
 
@@ -691,6 +697,7 @@ Chạy `nitro fusion compose` từ `fakebookGateway` và include mọi subgraph 
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -704,7 +711,7 @@ Chọn port local ổn định để tránh collision. Gợi ý:
 Authentication = 5001
 Gateway = 5099
 Search = 5010
-SocialGraph = 5011
+SocialGraph = 5223
 Recommendation = 5012
 Messaging = 5013
 Notification = 5014
@@ -775,11 +782,12 @@ Testing:
 - Test unauthorized, unauthenticated, và revoked-session paths.
 - Test schema composition sau mỗi schema change.
 
-## Ghi Chú Cho Các Subgraph Dự Kiến
+## Ghi Chú Ownership Các Subgraph
 
 Authentication:
 
 - Đã implement.
+- Đã compose trong `gateway.far`.
 - Sở hữu identity, credentials, sessions, OTP, JWT issuing, refresh token rotation, cookie instruction contract.
 - Expose `validateGatewaySession` cho Gateway internal use.
 
@@ -792,7 +800,8 @@ Search:
 
 SocialGraph:
 
-- Nên sở hữu friend/follow/block relationships.
+- Đã compose trong `gateway.far`; hiện chỉ public `createUser`.
+- Sở hữu canonical user ID, social profile và friend/follow/block relationships.
 - Phải enforce user ownership và block semantics.
 - Nên expose relationship checks mà subgraph khác cần qua stable APIs hoặc future events/read models.
 
@@ -822,14 +831,15 @@ Media:
 
 ## Testing Notes
 
-E2E gần đây cover 53 assertions:
+E2E runner Auth/Gateway trước đây cover 53 assertions. Phần compose SocialGraph còn được runtime smoke test riêng.
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
 - Auth direct refresh/change password/password reset.
 - Internal `validateGatewaySession` success và wrong-secret failure.
 - Gateway proxy health và public schema checks.
-- Gateway proxy register/resend/verify/login.
+- Gateway proxy createUser/resend/verify/login; Auth `register` legacy đã bị ẩn.
+- Route SocialGraph `createUser`, ẩn internal fields và forward trusted headers.
 - Gateway set HttpOnly refresh cookie và strip raw refresh token values.
 - Gateway validate session thông qua Auth.
 - Gateway reject revoked sessions.
