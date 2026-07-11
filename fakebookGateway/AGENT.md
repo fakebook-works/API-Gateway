@@ -316,7 +316,7 @@ validateGatewaySession
 register
 ```
 
-`validateGatewaySession` and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`, which creates the canonical user ID and then calls Auth's protected internal REST API with that ID.
+`validateGatewaySession` and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`. SocialGraph creates the canonical user ID, calls Auth's protected `POST /internal/users` first, then concurrently provisions the Search user index and Recommendation user embedding with that same ID. Auth is required and causes SocialGraph rollback on failure; the two derived projections are idempotent and best-effort. Gateway only routes the composed mutation and does not orchestrate those service calls.
 
 ## Fusion Schema Layout
 

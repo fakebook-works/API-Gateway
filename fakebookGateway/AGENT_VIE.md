@@ -316,7 +316,7 @@ validateGatewaySession
 register
 ```
 
-`validateGatewaySession` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`; SocialGraph tạo canonical user ID rồi gọi protected internal REST API của Auth với đúng ID đó.
+`validateGatewaySession` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`. SocialGraph tạo canonical user ID, gọi Auth `POST /internal/users` trước, rồi chạy đồng thời Search user-index và Recommendation user-embedding bằng đúng ID đó. Auth là bước bắt buộc và SocialGraph rollback nếu lỗi; hai derived projection idempotent và best-effort. Gateway chỉ route mutation đã compose, không trực tiếp orchestrate các service call này.
 
 ## Fusion Schema Layout
 

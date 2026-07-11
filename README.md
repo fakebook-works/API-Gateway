@@ -92,7 +92,15 @@ mutation CreateUser($input: CreateUserInput!) {
 }
 ```
 
-On success, SocialGraph owns the generated canonical user ID and Authentication stores its identity record with that exact ID.
+Registration is orchestrated behind that single mutation:
+
+1. SocialGraph creates the profile and canonical Snowflake `userId`.
+2. SocialGraph calls Authentication `POST /internal/users` with that exact ID. This step is required.
+3. If Authentication fails, SocialGraph removes the new profile and returns a failed payload.
+4. After Authentication succeeds, SocialGraph concurrently calls Search `PUT /internal/search/indexes/{userId}` and Recommendation `PUT /internal/recommendation/users/{userId}/embedding`.
+5. Search and Recommendation provisioning are idempotent and best-effort; SocialGraph returns the canonical ID even if a derived projection is temporarily unavailable.
+
+Gateway does not call Search or Recommendation directly during registration. It exposes and routes the single SocialGraph mutation.
 
 ## Run With Docker
 
