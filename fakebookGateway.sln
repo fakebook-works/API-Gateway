@@ -2,6 +2,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "fakebookGateway", "fakebookGateway\fakebookGateway.csproj", "{75A27CB1-DC7A-4C5B-AEF1-52D2B617C5F1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7045A54A-22B4-4FA8-81A0-626A5927093C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "fakebookGateway.Tests", "tests\fakebookGateway.Tests\fakebookGateway.Tests.csproj", "{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +16,12 @@ Global
 		{75A27CB1-DC7A-4C5B-AEF1-52D2B617C5F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{75A27CB1-DC7A-4C5B-AEF1-52D2B617C5F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{75A27CB1-DC7A-4C5B-AEF1-52D2B617C5F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F45CF1C7-41BC-4E6B-A656-BEB0EF39586E} = {7045A54A-22B4-4FA8-81A0-626A5927093C}
 	EndGlobalSection
 EndGlobal

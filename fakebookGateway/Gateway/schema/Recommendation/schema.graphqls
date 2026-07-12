@@ -1,0 +1,8 @@
+type Query {
+  hello: String!
+  recommendFeed(userId: ID!, skip: Int! = 0, take: Int! = 20): [RecommendationItem!]!
+}
+
+type RecommendationItem {
+  postId: ID!
+}

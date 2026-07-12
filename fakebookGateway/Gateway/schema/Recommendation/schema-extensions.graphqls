@@ -1,0 +1,7 @@
+extend type Query {
+  hello: String! @internal
+}
+
+extend type RecommendationItem {
+  postId: ID! @shareable
+}

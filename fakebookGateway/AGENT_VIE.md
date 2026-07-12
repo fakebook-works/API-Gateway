@@ -11,8 +11,8 @@ Gateway là public GraphQL entry point cho frontend. Gateway compose nhiều Gra
 - Endpoint public chính: `/graphql`.
 - Route `/` redirect sang `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Subgraph hiện tại đã compose: `Authentication` và `SocialGraph`.
-- Subgraph dự kiến: `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`.
+- Subgraph hiện tại đã compose: `Authentication`, `SocialGraph` và `Recommendation`.
+- Subgraph dự kiến: `Search`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validate JWT local và validate active session với Authentication subgraph.
 - Refresh token model: Gateway sở hữu browser cookie. Auth trả cookie instruction; Gateway apply instruction và scrub raw refresh token khỏi public GraphQL response.
 
@@ -22,8 +22,9 @@ Capability hiện tại:
 
 - Expose một public GraphQL endpoint duy nhất cho frontend.
 - Load Fusion archive từ file với `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations tới Authentication và SocialGraph subgraph.
+- Proxy GraphQL operations tới Authentication, SocialGraph và Recommendation subgraph.
 - Expose SocialGraph `createUser` làm mutation đăng ký public chuẩn.
+- Expose các Home API đã authorize của SocialGraph và hydrate `RecommendationItem.post` qua internal batch lookup.
 - Validate HS256 JWT access token bằng issuer, audience và signing key trong config.
 - Validate session state của access token với Auth qua internal query `validateGatewaySession`.
 - Cache kết quả Auth session validation trong một TTL ngắn.
@@ -48,8 +49,8 @@ Capability hiện tại:
 
 Giới hạn hiện tại:
 
-- Hiện chỉ có `createUser` được public từ SocialGraph; các field còn lại là composition-internal cho đến khi có authorization.
-- Chưa có automated test project cố định.
+- Public SocialGraph fields chỉ gồm registration/Home contract đã hoàn thiện; raw graph fields và domain mutation chưa audit vẫn là composition-internal.
+- Recommendation paging hiện dùng `skip`/`take` có giới hạn, chưa phải snapshot/cursor paging.
 - Fusion composition hiện là manual local workflow.
 - Gateway chưa implement field-level authorization rule. Subgraph phải tự protect private operations bằng internal headers và `X-Gateway-Secret`, hoặc Gateway cần được mở rộng field policy trước khi expose sensitive fields từ subgraph yếu.
 - Fusion URLs được bake vào `gateway.far` lúc compose. Runtime config `Subgraphs:*:Url` hiện dùng cho internal client của Gateway như Auth session validation, không phải generic service discovery cho mọi Fusion transport.
@@ -100,7 +101,7 @@ Gateway config bắt buộc:
 Gateway__InternalSharedSecret
 ```
 
-Internal shared secret phải trùng với `Gateway:InternalSharedSecret` trong Authentication và SocialGraph. SocialGraph dùng secret này khi gọi protected API `/internal/users` của Auth. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
+Internal shared secret phải trùng với `Gateway:InternalSharedSecret` trong Authentication, SocialGraph và Recommendation. SocialGraph dùng secret này khi gọi protected internal API. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
 
 Environment variables hữu ích:
 
@@ -282,7 +283,7 @@ Implementation notes:
 
 ## Public GraphQL Surface Hiện Tại
 
-Public surface hiện tại đến từ Authentication và SocialGraph.
+Public surface hiện tại đến từ Authentication, SocialGraph và Recommendation.
 
 Queries:
 
@@ -291,6 +292,12 @@ health
 me
 mySessions
 mySessionHistory
+recommendFeed
+visitedGroups
+postDetail
+postDetails
+homeStories
+myStories
 ```
 
 Mutations:
@@ -307,6 +314,11 @@ requestPasswordReset
 resetPassword
 changePassword
 createUser
+recordGroupVisit
+createFeedPost
+createNormalStory
+createShareStory
+deleteStory
 ```
 
 Internal Auth fields:
@@ -317,6 +329,8 @@ register
 ```
 
 `validateGatewaySession` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`. SocialGraph tạo canonical user ID, gọi Auth `POST /internal/users` trước, rồi chạy đồng thời Search user-index và Recommendation user-embedding bằng đúng ID đó. Auth là bước bắt buộc và SocialGraph rollback nếu lỗi; hai derived projection idempotent và best-effort. Gateway chỉ route mutation đã compose, không trực tiếp orchestrate các service call này.
+
+SocialGraph lookup `recommendationItem` và Recommendation field `hello` là internal. `recommendFeed` trả ranked IDs từ Recommendation; Fusion dùng lookup để batch-hydrate nullable `RecommendationItem.post` từ SocialGraph, đồng thời giữ user/group post type và viewer authorization.
 
 ## Fusion Schema Layout
 
@@ -392,6 +406,7 @@ cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --archive .\gateway.far `
   --env Development
 ```
@@ -418,6 +433,7 @@ Compose production:
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --archive .\gateway.far `
   --env Production
 ```
@@ -698,6 +714,7 @@ cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -800,14 +817,15 @@ Search:
 
 SocialGraph:
 
-- Đã compose trong `gateway.far`; hiện chỉ public `createUser`.
+- Đã compose trong `gateway.far`; registration, Home story, group shortcut, post create/detail và Story mutations đã hoàn thiện được public.
 - Sở hữu canonical user ID, social profile và friend/follow/block relationships.
 - Phải enforce user ownership và block semantics.
 - Nên expose relationship checks mà subgraph khác cần qua stable APIs hoặc future events/read models.
 
 Recommendation:
 
-- Nên sở hữu ranking và recommendation generation.
+- Đã compose trong `gateway.far` và sở hữu ranked `postId` generation.
+- Trả `RecommendationItem` ID-only; SocialGraph đóng góp nullable `post` qua internal Fusion lookup và request DataLoader.
 - Treat identity context như input, không phải authority cho data ownership.
 - Không write core social/media state.
 
@@ -839,7 +857,8 @@ E2E runner Auth/Gateway trước đây cover 53 assertions. Phần compose Socia
 - Internal `validateGatewaySession` success và wrong-secret failure.
 - Gateway proxy health và public schema checks.
 - Gateway proxy createUser/resend/verify/login; Auth `register` legacy đã bị ẩn.
-- Route SocialGraph `createUser`, ẩn internal fields và forward trusted headers.
+- Route SocialGraph registration/Home, ẩn internal fields và forward trusted headers.
+- Compose hydrated `recommendFeed`, user/group post union và null post handling.
 - Gateway set HttpOnly refresh cookie và strip raw refresh token values.
 - Gateway validate session thông qua Auth.
 - Gateway reject revoked sessions.

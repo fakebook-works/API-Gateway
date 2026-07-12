@@ -2,7 +2,7 @@
 
 Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 8 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
 
-The currently composed subgraphs are `Authentication` and `SocialGraph`. Only the canonical `createUser` registration mutation is exposed from SocialGraph for now. Planned subgraphs include `Search`, `Recommendation`, `Messaging`, `Notification`, and `Media`.
+The currently composed subgraphs are `Authentication`, `SocialGraph`, and `Recommendation`. Planned subgraphs include `Search`, `Messaging`, `Notification`, and `Media`.
 
 ## Features
 
@@ -11,6 +11,8 @@ The currently composed subgraphs are `Authentication` and `SocialGraph`. Only th
 - JWT access-token validation at the Gateway.
 - Session validation against the Authentication subgraph.
 - Canonical user registration through SocialGraph, followed by internal Authentication identity creation with the same user ID.
+- Home stories, visited-group shortcuts, post creation, and authorization-aware post detail from SocialGraph.
+- A hydrated recommendation query: Recommendation ranks IDs and Fusion batch-resolves each `post` through SocialGraph.
 - Trusted internal header forwarding to subgraphs.
 - HttpOnly refresh-cookie handling for login, refresh, logout, and logout-all flows.
 - Public response scrubbing for raw refresh-token values.
@@ -22,6 +24,7 @@ The currently composed subgraphs are `Authentication` and `SocialGraph`. Only th
 - Docker, if running the container image.
 - A running Authentication subgraph, usually at `http://localhost:5001/graphql`.
 - A running SocialGraph subgraph, usually at `http://localhost:5223/graphql`.
+- A running Recommendation subgraph, usually at `http://localhost:8000/graphql`.
 - JWT settings must match Authentication. `Gateway:InternalSharedSecret` must be the same in Gateway, SocialGraph, and Authentication so SocialGraph can use Auth's protected internal API.
 
 ## Configuration
@@ -43,7 +46,7 @@ Subgraphs__Authentication__Url=http://localhost:5001/graphql
 
 ## Run Locally
 
-Start the Authentication and SocialGraph subgraphs first, then run the Gateway:
+Start Authentication, SocialGraph, and Recommendation first, then run the Gateway:
 
 ```powershell
 dotnet restore .\fakebookGateway.sln
@@ -102,6 +105,44 @@ Registration is orchestrated behind that single mutation:
 
 Gateway does not call Search or Recommendation directly during registration. It exposes and routes the single SocialGraph mutation.
 
+## SocialGraph Feed API
+
+The following completed SocialGraph operations are public through Gateway:
+
+```text
+Query:    visitedGroups, postDetail, postDetails, homeStories, myStories
+Mutation: createUser, recordGroupVisit, createFeedPost,
+          createNormalStory, createShareStory, deleteStory
+```
+
+Raw graph operations and domain mutations without complete ownership authorization remain composition-internal.
+
+The recommended feed is a single composed query. Recommendation owns ordering; SocialGraph owns post data, privacy, block checks, and user/group post discrimination:
+
+```graphql
+query RecommendedFeed($userId: ID!, $skip: Int! = 0, $take: Int! = 20) {
+  recommendFeed(userId: $userId, skip: $skip, take: $take) {
+    postId
+    post {
+      __typename
+      ... on FeedPostDetail {
+        id content privacy create
+        author { id name avatar isVerified canFollow }
+        media { id type url }
+      }
+      ... on GroupPostDetail {
+        id content privacy create
+        author { id name avatar isVerified canFollow }
+        group { id name avatar canJoin }
+        media { id type url }
+      }
+    }
+  }
+}
+```
+
+`post` is nullable because a ranked candidate may be deleted, blocked, or made private between candidate generation and hydration. Frontend should omit null items. See `fakebookGateway/Docs/socialgraph-feed-api.md` for complete operations, variables, paging, errors, and frontend handling.
+
 ## Run With Docker
 
 A prebuilt image is available:
@@ -116,7 +157,7 @@ docker run --rm -p 5099:8080 `
   ghcr.io/fakebook-works/api-gateway:main
 ```
 
-Important: Fusion subgraph transport URLs are stored in `gateway.far`. The current development archive points Authentication to `http://localhost:5001/graphql` and SocialGraph to `http://localhost:5223/graphql`. For Docker deployments, recompose `gateway.far` with transport URLs reachable inside the container network.
+Important: Fusion subgraph transport URLs are stored in `gateway.far`. The current development archive points Authentication to `http://localhost:5001/graphql`, SocialGraph to `http://localhost:5223/graphql`, and Recommendation to `http://localhost:8000/graphql`. For Docker deployments, recompose `gateway.far` with transport URLs reachable inside the container network.
 
 Build locally instead:
 
@@ -146,11 +187,20 @@ cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --archive .\gateway.far `
   --env Development
 ```
 
 Commit the updated schema files and `gateway.far`.
+
+## Tests
+
+```powershell
+dotnet test .\fakebookGateway.sln
+```
+
+The tests boot the composed archive, introspect the frontend-visible contract, assert internal fields are hidden, verify `RecommendationItem.post` and the `HomePost` union, and confirm trusted subgraph headers replace spoofed values.
 
 ## Documentation
 
@@ -158,3 +208,4 @@ Detailed agent/developer guides are available in:
 
 - `fakebookGateway/AGENT.md`
 - `fakebookGateway/AGENT_VIE.md`
+- `fakebookGateway/Docs/socialgraph-feed-api.md`

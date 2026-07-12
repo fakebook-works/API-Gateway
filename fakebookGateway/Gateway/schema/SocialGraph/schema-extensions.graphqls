@@ -1,12 +1,17 @@
 extend type Query {
+  recommendationItem(postId: ID!): RecommendationItem @lookup @internal
   object(id: Long!): SocialGraphObjectResult @internal
   association(id1: Long!, atype: Short!, cursor: String, limit: Int!): AssociationPageResult! @internal
   associationCount(id1: Long!, atype: Short!): Long! @internal
   profile(userId: Long!): UserProfileResult @internal
   group(groupId: Long!): GroupResult @internal
+  visitedGroups(userId: Long!, limit: Int!, cursor: String): VisitedGroupPageResult!
   content(contentId: Long!): ContentResult @internal
+  postDetail(postId: Long!): HomePost
+  postDetails(postIds: [Long!]!): [HomePost!]!
+  homeStories(userId: Long!, limit: Int!, cursor: String): HomeStoryPageResult!
+  myStories(userId: Long!): HomeStoryBucketResult
   relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]! @internal
-  postCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]! @internal
   reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]! @internal
   _service: _Service! @internal
 }
@@ -33,16 +38,19 @@ extend type Mutation {
   deleteGroup(groupId: Long!): Boolean! @internal
   changeGroupAvatar(groupId: Long!, avatarUrl: String!): GroupResult @internal
   changeGroupBackground(groupId: Long!, backgroundUrl: String!, originalUrl: String): GroupResult @internal
+  recordGroupVisit(userId: Long!, groupId: Long!): Boolean!
   addGroupMember(groupId: Long!, userId: Long!): Boolean! @internal
   removeGroupMember(groupId: Long!, userId: Long!): Boolean! @internal
   addGroupAdmin(groupId: Long!, userId: Long!): Boolean! @internal
   removeGroupAdmin(groupId: Long!, userId: Long!): Boolean! @internal
-  createFeedPost(input: CreateFeedPostInput!): ContentResult! @internal
+  createFeedPost(input: CreateFeedPostInput!): ContentResult!
   createGroupPost(input: CreateGroupPostInput!): ContentResult! @internal
   updatePost(input: UpdatePostInput!): ContentResult @internal
   deleteContent(contentId: Long!): Boolean! @internal
   createComment(input: CreateCommentInput!): ContentResult! @internal
-  createStory(input: CreateStoryInput!): ContentResult! @internal
+  createNormalStory(input: CreateNormalStoryInput!): NormalStory!
+  createShareStory(input: CreateShareStoryInput!): HomeStory!
+  deleteStory(input: DeleteStoryInput!): DeleteStoryPayload!
   createReel(input: CreateReelInput!): ContentResult! @internal
   sharePost(input: SharePostInput!): ContentResult! @internal
   like(userId: Long!, targetId: Long!): Boolean! @internal
@@ -52,4 +60,8 @@ extend type Mutation {
   watch(userId: Long!, targetId: Long!): Boolean! @internal
   tag(postId: Long!, userId: Long!): Boolean! @internal
   mention(sourceId: Long!, userId: Long!): Boolean! @internal
+}
+
+extend type RecommendationItem {
+  postId: ID! @shareable
 }

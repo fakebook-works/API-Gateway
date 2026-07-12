@@ -8,16 +8,22 @@ schema
 }
 
 type Query {
+  recommendationItem(postId: ID!): RecommendationItem
   object(id: Long!): SocialGraphObjectResult @cost(weight: "10")
   association(id1: Long!, atype: Short!, cursor: String, limit: Int!): AssociationPageResult!
     @cost(weight: "10")
   associationCount(id1: Long!, atype: Short!): Long! @cost(weight: "10")
   profile(userId: Long!): UserProfileResult @cost(weight: "10")
   group(groupId: Long!): GroupResult @cost(weight: "10")
-  content(contentId: Long!): ContentResult @cost(weight: "10")
-  relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]!
+  visitedGroups(userId: Long!, limit: Int!, cursor: String): VisitedGroupPageResult!
     @cost(weight: "10")
-  postCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
+  content(contentId: Long!): ContentResult @cost(weight: "10")
+  postDetail(postId: Long!): HomePost @cost(weight: "10")
+  postDetails(postIds: [Long!]!): [HomePost!]! @cost(weight: "10")
+  homeStories(userId: Long!, limit: Int!, cursor: String): HomeStoryPageResult!
+    @cost(weight: "10")
+  myStories(userId: Long!): HomeStoryBucketResult @cost(weight: "10")
+  relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]!
     @cost(weight: "10")
   reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
     @cost(weight: "10")
@@ -67,6 +73,7 @@ type Mutation {
     backgroundUrl: String!
     originalUrl: String
   ): GroupResult @cost(weight: "10")
+  recordGroupVisit(userId: Long!, groupId: Long!): Boolean! @cost(weight: "10")
   addGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   removeGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   addGroupAdmin(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
@@ -78,7 +85,11 @@ type Mutation {
   updatePost(input: UpdatePostInput!): ContentResult @cost(weight: "10")
   deleteContent(contentId: Long!): Boolean! @cost(weight: "10")
   createComment(input: CreateCommentInput!): ContentResult! @cost(weight: "10")
-  createStory(input: CreateStoryInput!): ContentResult! @cost(weight: "10")
+  createNormalStory(input: CreateNormalStoryInput!): NormalStory!
+    @cost(weight: "10")
+  createShareStory(input: CreateShareStoryInput!): HomeStory!
+    @cost(weight: "10")
+  deleteStory(input: DeleteStoryInput!): DeleteStoryPayload! @cost(weight: "10")
   createReel(input: CreateReelInput!): ContentResult! @cost(weight: "10")
   sharePost(input: SharePostInput!): ContentResult! @cost(weight: "10")
   like(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
@@ -128,6 +139,46 @@ type CreateUserPayload {
   message: String
 }
 
+type DeleteStoryPayload {
+  success: Boolean!
+  message: String
+}
+
+type FeedPostDetail {
+  id: Long!
+  type: Short!
+  content: String!
+  privacy: Int!
+  create: String!
+  author: PostAuthor!
+  media: [MediaResult!]!
+}
+
+type FeedPostSharedSource {
+  id: Long!
+  content: String!
+  media: MediaResult
+  author: UserSummaryResult
+}
+
+type FeedPostShareStory {
+  id: Long!
+  content: String!
+  create: String!
+  sharedSource: FeedPostSharedSource!
+}
+
+type GroupPostDetail {
+  id: Long!
+  type: Short!
+  content: String!
+  privacy: Int!
+  create: String!
+  author: PostAuthor!
+  group: PostGroup!
+  media: [MediaResult!]!
+}
+
 type GroupResult {
   id: Long!
   avatar: String!
@@ -140,10 +191,63 @@ type GroupResult {
   adminCount: Long!
 }
 
+type HomeStoryBucketResult {
+  author: UserSummaryResult!
+  latestCreate: String!
+  stories: [HomeStory!]!
+}
+
+type HomeStoryPageResult {
+  items: [HomeStoryBucketResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
 type MediaResult {
   id: Long!
   type: Int!
   url: String!
+}
+
+type NormalStory {
+  id: Long!
+  content: String!
+  create: String!
+  media: [MediaResult!]!
+}
+
+type PostAuthor {
+  id: Long!
+  name: String!
+  avatar: String!
+  isVerified: Boolean!
+  canFollow: Boolean!
+}
+
+type PostGroup {
+  id: Long!
+  name: String!
+  avatar: String!
+  canJoin: Boolean!
+}
+
+type RecommendationItem {
+  postId: ID!
+  post: HomePost @cost(weight: "10")
+}
+
+type ReelSharedSource {
+  id: Long!
+  content: String!
+  media: MediaResult
+  author: UserSummaryResult
+}
+
+type ReelShareStory {
+  id: Long!
+  content: String!
+  create: String!
+  sharedSource: ReelSharedSource!
 }
 
 type SocialGraphObjectResult {
@@ -169,6 +273,29 @@ type UserProfileResult {
   followerCount: Long!
   followingCount: Long!
 }
+
+type UserSummaryResult {
+  id: Long!
+  name: String!
+  avatar: String!
+  isVerified: Boolean!
+}
+
+type VisitedGroupPageResult {
+  items: [VisitedGroupResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type VisitedGroupResult {
+  id: Long!
+  avatar: String!
+  name: String!
+}
+
+union HomePost = FeedPostDetail | GroupPostDetail
+
+union HomeStory = NormalStory | FeedPostShareStory | ReelShareStory
 
 input CreateCommentInput {
   authorId: Long!
@@ -199,16 +326,22 @@ input CreateGroupPostInput {
   media: [MediaInput!]
 }
 
+input CreateNormalStoryInput {
+  authorId: Long!
+  content: String!
+  media: MediaInput
+}
+
 input CreateReelInput {
   authorId: Long!
   content: String!
   media: MediaInput
 }
 
-input CreateStoryInput {
+input CreateShareStoryInput {
   authorId: Long!
   content: String!
-  media: MediaInput
+  sharedSourceId: Long!
 }
 
 input CreateUserInput {
@@ -218,6 +351,11 @@ input CreateUserInput {
   location: String!
   email: String!
   password: String!
+}
+
+input DeleteStoryInput {
+  authorId: Long!
+  storyId: Long!
 }
 
 input MediaInput {

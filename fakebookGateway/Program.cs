@@ -36,8 +36,6 @@ builder.Services
         "Jwt:SigningKey must be at least 32 bytes.")
     .ValidateOnStart();
 
-var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuthSessionValidator, AuthSessionValidator>();
@@ -75,8 +73,13 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+builder.Services
+    .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((options, configuredJwtOptions) =>
     {
+        var jwtOptions = configuredJwtOptions.Value;
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -122,3 +125,5 @@ static string ResolveContentPath(IHostEnvironment environment, string path) =>
     System.IO.Path.IsPathRooted(path)
         ? path
         : System.IO.Path.Combine(environment.ContentRootPath, path);
+
+public partial class Program;

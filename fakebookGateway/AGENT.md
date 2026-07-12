@@ -11,8 +11,8 @@ The Gateway is the public GraphQL entry point for the frontend. It composes mult
 - Main public endpoint: `/graphql`.
 - Root route: `/` redirects to `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Current composed subgraphs: `Authentication` and `SocialGraph`.
-- Planned subgraphs: `Search`, `Recommendation`, `Messaging`, `Notification`, `Media`.
+- Current composed subgraphs: `Authentication`, `SocialGraph`, and `Recommendation`.
+- Planned subgraphs: `Search`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validates JWT locally and validates active session status with the Authentication subgraph.
 - Refresh token model: Gateway owns browser cookies. Auth returns cookie instructions; Gateway applies them and scrubs raw refresh token values from public GraphQL responses.
 
@@ -22,8 +22,9 @@ Current capabilities:
 
 - Expose a single public GraphQL endpoint for frontend clients.
 - Load a Fusion archive from disk with `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations to the Authentication and SocialGraph subgraphs.
+- Proxy GraphQL operations to the Authentication, SocialGraph, and Recommendation subgraphs.
 - Expose SocialGraph `createUser` as the canonical public registration mutation.
+- Expose authorized SocialGraph Home operations and hydrate `RecommendationItem.post` through an internal batched lookup.
 - Validate HS256 JWT access tokens using configured issuer, audience, and signing key.
 - Validate access-token session state against Auth through the internal `validateGatewaySession` query.
 - Cache Auth session validation results for a short configurable TTL.
@@ -48,8 +49,8 @@ Current capabilities:
 
 Current limitations:
 
-- Only `createUser` is currently public from SocialGraph; its remaining fields are composition-internal until authorization is implemented.
-- There is no permanent automated test project yet.
+- Public SocialGraph fields are limited to the completed registration/Home contract; raw graph fields and unaudited domain mutations remain composition-internal.
+- Recommendation pagination is currently bounded `skip`/`take`, not snapshot or cursor pagination.
 - Fusion composition is currently a manual local workflow.
 - The Gateway does not currently implement field-level authorization rules. Subgraphs must protect their own private operations using the internal headers and `X-Gateway-Secret`, or the Gateway must be extended with field policy before exposing sensitive fields from a weak subgraph.
 - Fusion URLs are baked into `gateway.far` during composition. Runtime `Subgraphs:*:Url` config is currently used by Gateway-owned internal clients such as Auth session validation, not as generic service discovery for every Fusion transport.
@@ -100,7 +101,7 @@ Required Gateway configuration:
 Gateway__InternalSharedSecret
 ```
 
-The internal shared secret must match `Gateway:InternalSharedSecret` in Authentication and SocialGraph. SocialGraph uses it when calling Auth's protected `/internal/users` API. Use at least 32 bytes even though the Gateway currently validates only a non-empty value.
+The internal shared secret must match `Gateway:InternalSharedSecret` in Authentication, SocialGraph, and Recommendation. SocialGraph uses it when calling protected internal APIs. Use at least 32 bytes even though the Gateway currently validates only a non-empty value.
 
 Useful environment variables:
 
@@ -282,7 +283,7 @@ Implementation notes:
 
 ## Current Public GraphQL Surface
 
-The currently composed public surface comes from Authentication and SocialGraph.
+The currently composed public surface comes from Authentication, SocialGraph, and Recommendation.
 
 Queries:
 
@@ -291,6 +292,12 @@ health
 me
 mySessions
 mySessionHistory
+recommendFeed
+visitedGroups
+postDetail
+postDetails
+homeStories
+myStories
 ```
 
 Mutations:
@@ -307,6 +314,11 @@ requestPasswordReset
 resetPassword
 changePassword
 createUser
+recordGroupVisit
+createFeedPost
+createNormalStory
+createShareStory
+deleteStory
 ```
 
 Internal Auth fields:
@@ -317,6 +329,8 @@ register
 ```
 
 `validateGatewaySession` and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`. SocialGraph creates the canonical user ID, calls Auth's protected `POST /internal/users` first, then concurrently provisions the Search user index and Recommendation user embedding with that same ID. Auth is required and causes SocialGraph rollback on failure; the two derived projections are idempotent and best-effort. Gateway only routes the composed mutation and does not orchestrate those service calls.
+
+The SocialGraph `recommendationItem` lookup and Recommendation `hello` field are internal. `recommendFeed` returns ranked IDs from Recommendation; Fusion uses the lookup to batch-hydrate nullable `RecommendationItem.post` from SocialGraph while preserving user/group post types and viewer authorization.
 
 ## Fusion Schema Layout
 
@@ -392,6 +406,7 @@ cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --archive .\gateway.far `
   --env Development
 ```
@@ -418,6 +433,7 @@ For production composition:
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --archive .\gateway.far `
   --env Production
 ```
@@ -698,6 +714,7 @@ cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
+  --source-schema-file .\Gateway\schema\Recommendation `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -800,14 +817,15 @@ Search:
 
 SocialGraph:
 
-- Already composed in `gateway.far`; only `createUser` is public for now.
+- Already composed in `gateway.far`; completed registration, Home story, group shortcut, post create/detail, and Story mutations are public.
 - Owns canonical user IDs, social profiles, and friend/follow/block relationships.
 - Must enforce user ownership and block semantics.
 - Should expose relationship checks needed by other subgraphs only through stable APIs or future events/read models.
 
 Recommendation:
 
-- Should own ranking and recommendation generation.
+- Is composed in `gateway.far` and owns ranked `postId` generation.
+- Returns ID-only `RecommendationItem`; SocialGraph contributes nullable `post` through an internal Fusion lookup and request DataLoader.
 - Should treat identity context as input, not authority for data ownership.
 - Should avoid writing core social/media state.
 
@@ -839,7 +857,8 @@ The historical Auth/Gateway E2E runner covered 53 assertions. The SocialGraph co
 - Internal `validateGatewaySession` success and wrong-secret failure.
 - Gateway proxy health and public schema checks.
 - Gateway proxy createUser/resend/verify/login; legacy Auth `register` is hidden.
-- SocialGraph `createUser` routing, internal-field hiding, and trusted-header forwarding.
+- SocialGraph registration/Home routing, internal-field hiding, and trusted-header forwarding.
+- Hydrated `recommendFeed` composition, user/group post union, and null post handling.
 - Gateway sets HttpOnly refresh cookie and strips raw refresh token values.
 - Gateway validates sessions through Auth.
 - Gateway rejects revoked sessions.
