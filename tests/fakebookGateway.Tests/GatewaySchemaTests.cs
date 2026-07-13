@@ -56,11 +56,15 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("postDetails", queryFields);
         Assert.Contains("homeStories", queryFields);
         Assert.Contains("myStories", queryFields);
+        Assert.Contains("premiumPlans", queryFields);
+        Assert.Contains("premiumOrder", queryFields);
         Assert.DoesNotContain("object", queryFields);
         Assert.DoesNotContain("association", queryFields);
         Assert.DoesNotContain("reelCandidates", queryFields);
         Assert.DoesNotContain("recommendationItem", queryFields);
         Assert.DoesNotContain("hello", queryFields);
+        Assert.DoesNotContain("validateGatewaySession", queryFields);
+        Assert.DoesNotContain("paymentPremiumState", queryFields);
 
         Assert.Contains("createUser", mutationFields);
         Assert.Contains("recordGroupVisit", mutationFields);
@@ -68,8 +72,11 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("createNormalStory", mutationFields);
         Assert.Contains("createShareStory", mutationFields);
         Assert.Contains("deleteStory", mutationFields);
+        Assert.Contains("createPremiumCheckout", mutationFields);
         Assert.DoesNotContain("addObject", mutationFields);
         Assert.DoesNotContain("createGroupPost", mutationFields);
+        Assert.DoesNotContain("register", mutationFields);
+        Assert.DoesNotContain("setPaymentValidDate", mutationFields);
 
         var types = data.GetProperty("types").EnumerateArray().ToArray();
         var homePost = Assert.Single(types, type => TypeName(type) == "HomePost");
@@ -99,6 +106,16 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Equal(
             new[] { "post", "postId" },
             FieldNames(recommendationItem).OrderBy(name => name));
+
+        var userType = Assert.Single(types, type => TypeName(type) == "UserType");
+        Assert.DoesNotContain("username", FieldNames(userType));
+        Assert.Contains("gender", FieldNames(userType));
+        Assert.Contains("validDate", FieldNames(userType));
+
+        Assert.DoesNotContain(
+            types,
+            type => FieldNamesOrEmpty(type).Contains("username", StringComparer.OrdinalIgnoreCase) ||
+                    InputFieldNamesOrEmpty(type).Contains("username", StringComparer.OrdinalIgnoreCase));
     }
 
     private static string[] FieldNames(JsonElement type) =>
@@ -106,6 +123,19 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             .EnumerateArray()
             .Select(field => field.GetProperty("name").GetString()!)
             .ToArray();
+
+    private static string[] FieldNamesOrEmpty(JsonElement type) =>
+        type.TryGetProperty("fields", out var fields) && fields.ValueKind == JsonValueKind.Array
+            ? fields.EnumerateArray().Select(FieldName).ToArray()
+            : [];
+
+    private static string[] InputFieldNamesOrEmpty(JsonElement type) =>
+        type.TryGetProperty("inputFields", out var fields) && fields.ValueKind == JsonValueKind.Array
+            ? fields.EnumerateArray().Select(FieldName).ToArray()
+            : [];
+
+    private static string FieldName(JsonElement field) =>
+        field.GetProperty("name").GetString()!;
 
     private static string TypeName(JsonElement type) =>
         type.GetProperty("name").GetString()!;

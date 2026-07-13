@@ -11,7 +11,7 @@ The Gateway is the public GraphQL entry point for the frontend. It composes mult
 - Main public endpoint: `/graphql`.
 - Root route: `/` redirects to `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Current composed subgraphs: `Authentication`, `SocialGraph`, and `Recommendation`.
+- Current composed subgraphs: `Authentication`, `SocialGraph`, `Recommendation`, and `Payment`.
 - Planned subgraphs: `Search`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validates JWT locally and validates active session status with the Authentication subgraph.
 - Refresh token model: Gateway owns browser cookies. Auth returns cookie instructions; Gateway applies them and scrubs raw refresh token values from public GraphQL responses.
@@ -22,9 +22,10 @@ Current capabilities:
 
 - Expose a single public GraphQL endpoint for frontend clients.
 - Load a Fusion archive from disk with `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations to the Authentication, SocialGraph, and Recommendation subgraphs.
+- Proxy GraphQL operations to the Authentication, SocialGraph, Recommendation, and Payment subgraphs.
 - Expose SocialGraph `createUser` as the canonical public registration mutation.
 - Expose authorized SocialGraph Home operations and hydrate `RecommendationItem.post` through an internal batched lookup.
+- Expose Payment Premium operations and proxy PayOS webhooks through a bounded, rate-limited REST endpoint.
 - Validate HS256 JWT access tokens using configured issuer, audience, and signing key.
 - Validate access-token session state against Auth through the internal `validateGatewaySession` query.
 - Cache Auth session validation results for a short configurable TTL.
@@ -32,7 +33,6 @@ Current capabilities:
 - Forward trusted identity context to subgraphs:
   - `X-User-Id`
   - `X-Session-Id`
-  - `X-Username`
   - `X-Correlation-ID`
   - `Authorization`
   - `X-Refresh-Token`
@@ -51,6 +51,7 @@ Current limitations:
 
 - Public SocialGraph fields are limited to the completed registration/Home contract; raw graph fields and unaudited domain mutations remain composition-internal.
 - Recommendation pagination is currently bounded `skip`/`take`, not snapshot or cursor pagination.
+- Payment webhook delivery is synchronous; Payment owns provider verification, idempotency, order state, and retry handling.
 - Fusion composition is currently a manual local workflow.
 - The Gateway does not currently implement field-level authorization rules. Subgraphs must protect their own private operations using the internal headers and `X-Gateway-Secret`, or the Gateway must be extended with field policy before exposing sensitive fields from a weak subgraph.
 - Fusion URLs are baked into `gateway.far` during composition. Runtime `Subgraphs:*:Url` config is currently used by Gateway-owned internal clients such as Auth session validation, not as generic service discovery for every Fusion transport.
@@ -101,7 +102,7 @@ Required Gateway configuration:
 Gateway__InternalSharedSecret
 ```
 
-The internal shared secret must match `Gateway:InternalSharedSecret` in Authentication, SocialGraph, and Recommendation. SocialGraph uses it when calling protected internal APIs. Use at least 32 bytes even though the Gateway currently validates only a non-empty value.
+The internal shared secret must match `Gateway:InternalSharedSecret` in Authentication, SocialGraph, Recommendation, and Payment. SocialGraph uses it for protected provisioning calls, and Gateway uses it for Auth session validation and the Payment webhook proxy. Use at least 32 bytes even though Gateway currently validates only a non-empty value.
 
 Useful environment variables:
 
@@ -119,6 +120,10 @@ Gateway__AllowedOrigins__1
 Gateway__AllowedOrigins__2
 Subgraphs__Authentication__Url
 Subgraphs__Authentication__GraphQLEndpoint
+Subgraphs__Payment__WebhookUrl
+PaymentGateway__TimeoutSeconds
+PaymentGateway__WebhookPermitLimit
+PaymentGateway__WebhookWindowSeconds
 ```
 
 Default Gateway values:
@@ -129,9 +134,11 @@ AuthenticationGraphQLEndpoint = http://localhost:5001/graphql
 SessionCacheSeconds = 30
 RefreshTokenCookieName = fb_refresh
 AllowedOrigins = http://localhost:3000, http://localhost:5173, http://localhost:5174
+PaymentWebhookEndpoint = http://localhost:5016/internal/webhooks/payos
+PaymentWebhookMaximumBodyBytes = 65536
 ```
 
-`Subgraphs__Authentication__Url` is used by the Gateway internal Auth session validator. The Fusion transport URL for Authentication is configured in `Gateway/schema/Authentication/schema-settings.json` and composed into `gateway.far`.
+`Subgraphs__Authentication__Url` is used by the Gateway internal Auth session validator. `Subgraphs__Payment__WebhookUrl` is used only by the PayOS REST proxy. Fusion GraphQL transport URLs are configured in each `Gateway/schema/<Subgraph>/schema-settings.json` and composed into `gateway.far`.
 
 ## Middleware Order
 
@@ -176,7 +183,7 @@ Authenticated operation:
 Frontend -> Gateway /graphql with Authorization: Bearer <accessToken>
 Gateway strips trusted headers
 Gateway validates JWT signature, issuer, audience, nbf, exp
-Gateway extracts user_id, sid, username
+Gateway extracts user_id and sid
 Gateway calls Auth validateGatewaySession with X-Gateway-Secret
 Gateway caches positive/negative session validation briefly
 Gateway stores trusted identity context in HttpContext.Items
@@ -203,7 +210,6 @@ Gateway-generated headers:
 Authorization: Bearer <accessToken>
 X-User-Id: <current-user-id>
 X-Session-Id: <current-session-id>
-X-Username: <current-username>
 X-Correlation-ID: <request-correlation-id>
 X-Refresh-Token: <raw-refresh-token-from-HttpOnly-cookie>
 X-Gateway-Secret: <Gateway__InternalSharedSecret>
@@ -212,8 +218,9 @@ X-Gateway-Secret: <Gateway__InternalSharedSecret>
 Rules:
 
 - Browsers must not be allowed to set trusted identity headers.
-- Gateway strips `X-User-Id`, `X-Session-Id`, `X-Username`, `X-Gateway-Secret`, and `X-Refresh-Token` from public requests.
+- Gateway strips `X-User-Id`, `X-Session-Id`, legacy `X-Username`, `X-Gateway-Secret`, and `X-Refresh-Token` from public requests.
 - Gateway regenerates trusted headers before subgraph calls.
+- Gateway never regenerates or forwards `X-Username`; username/profile data is resolved through SocialGraph.
 - Subgraphs should trust these headers only when `X-Gateway-Secret` is valid and the request arrives through a trusted internal network path.
 - Subgraphs should use `X-Correlation-ID` in logs and outgoing calls.
 - Non-Auth subgraphs should not read browser cookies and should not handle refresh tokens.
@@ -283,7 +290,7 @@ Implementation notes:
 
 ## Current Public GraphQL Surface
 
-The currently composed public surface comes from Authentication, SocialGraph, and Recommendation.
+The currently composed public surface comes from Authentication, SocialGraph, Recommendation, and Payment.
 
 Queries:
 
@@ -298,6 +305,8 @@ postDetail
 postDetails
 homeStories
 myStories
+premiumPlans
+premiumOrder
 ```
 
 Mutations:
@@ -319,16 +328,21 @@ createFeedPost
 createNormalStory
 createShareStory
 deleteStory
+createPremiumCheckout
 ```
 
 Internal Auth fields:
 
 ```text
 validateGatewaySession
+paymentPremiumState
 register
+setPaymentValidDate
 ```
 
-`validateGatewaySession` and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`. SocialGraph creates the canonical user ID, calls Auth's protected `POST /internal/users` first, then concurrently provisions the Search user index and Recommendation user embedding with that same ID. Auth is required and causes SocialGraph rollback on failure; the two derived projections are idempotent and best-effort. Gateway only routes the composed mutation and does not orchestrate those service calls.
+`validateGatewaySession`, `paymentPremiumState`, `setPaymentValidDate`, and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`. SocialGraph creates the canonical user ID, calls Auth's protected `POST /internal/users` with email credentials, date of birth, and gender, then concurrently provisions the Search user index and Recommendation user embedding with that same ID. Auth is required and causes SocialGraph rollback on failure; the two derived projections are idempotent and best-effort. Gateway only routes the composed mutation and does not orchestrate those service calls.
+
+Authentication is email-only and does not persist a username. JWTs and trusted downstream headers contain user/session identity, not SocialGraph username/profile data.
 
 The SocialGraph `recommendationItem` lookup and Recommendation `hello` field are internal. `recommendFeed` returns ranked IDs from Recommendation; Fusion uses the lookup to batch-hydrate nullable `RecommendationItem.post` from SocialGraph while preserving user/group post types and viewer authorization.
 
@@ -407,6 +421,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --archive .\gateway.far `
   --env Development
 ```
@@ -420,6 +435,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Search `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --source-schema-file .\Gateway\schema\Messaging `
   --source-schema-file .\Gateway\schema\Notification `
   --source-schema-file .\Gateway\schema\Media `
@@ -434,6 +450,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --archive .\gateway.far `
   --env Production
 ```
@@ -459,7 +476,7 @@ Run:
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-Example local run with Auth on port `5001`, SocialGraph on port `5223`, and Gateway on port `5099`:
+Example local run with Auth on port `5001`, SocialGraph on port `5223`, Payment on port `5016`, and Gateway on port `5099`:
 
 ```powershell
 $env:ASPNETCORE_URLS="http://localhost:5099"
@@ -468,10 +485,11 @@ $env:Jwt__Audience="fakebook"
 $env:Jwt__SigningKey="<same-signing-key-as-auth-at-least-32-bytes>"
 $env:Gateway__InternalSharedSecret="<same-secret-as-auth-at-least-32-bytes>"
 $env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
+$env:Subgraphs__Payment__WebhookUrl="http://localhost:5016/internal/webhooks/payos"
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-The Development Fusion archive routes SocialGraph operations to `http://localhost:5223/graphql`, so SocialGraph must be running before testing `createUser` through the Gateway.
+The Development Fusion archive routes SocialGraph operations to `http://localhost:5223/graphql`, Recommendation to `http://localhost:8000/graphql`, and Payment to `http://localhost:5016/graphql`. Start those services before testing their composed operations.
 
 GraphQL endpoint:
 
@@ -542,7 +560,7 @@ Recommended behavior:
 - For public operations, requiring `X-Gateway-Secret` is still acceptable because public clients should call through Gateway.
 - For protected operations, require valid `X-Gateway-Secret`, `X-User-Id`, and usually `X-Session-Id`.
 - Use `X-User-Id` as the authoritative current user id.
-- Use `X-Username` only as display context, not as authority.
+- Resolve username/profile display data from SocialGraph; do not add it back to Auth JWTs or trusted headers.
 - Use `Authorization` only if the subgraph intentionally validates JWT itself.
 - Never trust a browser-supplied user id or session id.
 
@@ -552,7 +570,6 @@ Suggested context object:
 public sealed record GatewayUserContext(
     long? UserId,
     long? SessionId,
-    string? Username,
     string CorrelationId);
 ```
 
@@ -715,6 +732,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -751,7 +769,7 @@ Minimum checks for every new subgraph:
 - Protected operations fail after logout/revoked session.
 - Browser-supplied `X-User-Id`/`X-Gateway-Secret` spoofing does not bypass auth.
 - `X-Correlation-ID` reaches the subgraph logs.
-- Subgraph receives `X-User-Id`, `X-Session-Id`, and `X-Username` for authenticated calls.
+- Subgraph receives `X-User-Id` and `X-Session-Id` for authenticated calls; legacy `X-Username` is absent.
 
 ## Subgraph Development Guidelines
 
@@ -805,7 +823,7 @@ Authentication:
 
 - Already implemented.
 - Already composed in `gateway.far`.
-- Owns identity, credentials, sessions, OTP, JWT issuing, refresh token rotation, and cookie instruction contract.
+- Owns email identity, credentials, sessions, OTP, JWT issuing, refresh token rotation, and cookie instruction contract. It does not own or persist username.
 - Exposes `validateGatewaySession` for Gateway internal use.
 
 Search:
@@ -829,6 +847,13 @@ Recommendation:
 - Should treat identity context as input, not authority for data ownership.
 - Should avoid writing core social/media state.
 
+Payment:
+
+- Is composed in `gateway.far` and owns Premium plans, checkout orders, PayOS signature verification, idempotency, and activation retries.
+- Exposes `premiumPlans`, `premiumOrder`, and `createPremiumCheckout` through GraphQL.
+- Receives PayOS callbacks only through Gateway `POST /api/webhooks/payos`; the Gateway preserves raw JSON bytes and forwards only its correlation ID and internal secret.
+- Uses Auth's internal payment fields for premium state and valid-date activation; those fields remain hidden from frontend schema introspection.
+
 Messaging:
 
 - Must be protected by default.
@@ -849,7 +874,7 @@ Media:
 
 ## Testing Notes
 
-The historical Auth/Gateway E2E runner covered 53 assertions. The SocialGraph composition was also runtime-smoke-tested separately.
+The committed Gateway test project currently contains 17 tests covering composition, identity/session forwarding, SocialGraph/Recommendation hydration, and Payment integration.
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
@@ -865,12 +890,14 @@ The historical Auth/Gateway E2E runner covered 53 assertions. The SocialGraph co
 - Gateway refreshes with HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway rejects spoofed internal headers.
+- Public schema exposes Payment operations while Auth payment/session/provisioning fields stay internal.
+- Payment Fusion forwards server-owned user/session/correlation/secret headers without refresh credentials.
+- PayOS proxy preserves raw bytes, enforces JSON and 64 KiB limits, strips browser credentials/spoofed headers, rate limits by IP, maps safe statuses, and returns 503 on downstream failure.
 
-There is no permanent test project yet. Future improvement: move the temporary E2E runner into a committed `dotnet test` project.
+Run `dotnet test .\fakebookGateway.sln --configuration Release` after every schema, middleware, or proxy change.
 
 ## Known Work Left
 
-- Add permanent automated tests for Gateway proxy behavior.
 - Add a script for schema export + Fusion compose.
 - Add CI validation that `gateway.far` is in sync with committed source schemas.
 - Add health/readiness endpoints outside GraphQL if deployment needs them.

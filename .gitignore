@@ -5,3 +5,12 @@ riderModule.iml
 /_ReSharper.Caches/
 .idea
 .DS_Store
+.vs/
+
+# Commit only the base and example configuration files.
+appsettings.Development.json
+appsettings.Production.json
+appsettings.*.json
+!appsettings.json
+!appsettings.example.json
+**/Properties/launchSettings.json

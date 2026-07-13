@@ -1,0 +1,17 @@
+{
+  "name": "Payment",
+  "transports": {
+    "http": {
+      "url": "{{PAYMENT_URL}}",
+      "clientName": "payment-fusion"
+    }
+  },
+  "environments": {
+    "Development": {
+      "PAYMENT_URL": "http://localhost:5016/graphql"
+    },
+    "Production": {
+      "PAYMENT_URL": "http://payment:5016/graphql"
+    }
+  }
+}

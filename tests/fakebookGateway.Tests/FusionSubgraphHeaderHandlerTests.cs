@@ -13,7 +13,6 @@ public sealed class FusionSubgraphHeaderHandlerTests
         var context = new DefaultHttpContext();
         context.Items[GatewayConstants.UserIdItem] = "123";
         context.Items[GatewayConstants.SessionIdItem] = "456";
-        context.Items[GatewayConstants.UsernameItem] = "frontend-user";
         context.Items[GatewayConstants.CorrelationIdHeader] = "correlation-1";
         var capture = new CaptureHandler();
         var handler = new FusionSubgraphHeaderHandler(
@@ -29,13 +28,14 @@ public sealed class FusionSubgraphHeaderHandlerTests
         using var request = new HttpRequestMessage(HttpMethod.Post, "http://socialgraph/graphql");
         request.Headers.TryAddWithoutValidation(GatewayConstants.UserIdHeader, "999");
         request.Headers.TryAddWithoutValidation(GatewayConstants.SessionIdHeader, "999");
+        request.Headers.TryAddWithoutValidation("X-Username", "spoofed-username");
         request.Headers.TryAddWithoutValidation(GatewayConstants.GatewaySecretHeader, "spoofed-secret");
 
         using var response = await client.SendAsync(request);
 
         Assert.Equal("123", capture.Headers[GatewayConstants.UserIdHeader]);
         Assert.Equal("456", capture.Headers[GatewayConstants.SessionIdHeader]);
-        Assert.Equal("frontend-user", capture.Headers[GatewayConstants.UsernameHeader]);
+        Assert.False(capture.Headers.ContainsKey("X-Username"));
         Assert.Equal("correlation-1", capture.Headers[GatewayConstants.CorrelationIdHeader]);
         Assert.Equal(
             "trusted-gateway-secret-at-least-32-bytes",

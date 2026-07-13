@@ -25,7 +25,6 @@ public sealed class AuthSessionValidator(
             isValid
             userId
             sessionId
-            username
             status
             expiresAt
           }
@@ -106,7 +105,6 @@ public sealed class AuthSessionValidator(
             validation.GetProperty("isValid").GetBoolean(),
             validation.TryGetInt64("userId") ?? userId,
             validation.TryGetInt64("sessionId") ?? sessionId,
-            validation.TryGetString("username"),
             validation.TryGetInt16("status"),
             validation.TryGetDateTimeOffset("expiresAt"));
 
@@ -138,12 +136,11 @@ public sealed record GatewaySessionValidationResult(
     bool IsValid,
     long? UserId,
     long? SessionId,
-    string? Username,
     short? Status,
     DateTimeOffset? ExpiresAt)
 {
     public static GatewaySessionValidationResult Invalid(long userId, long sessionId) =>
-        new(false, userId, sessionId, null, null, null);
+        new(false, userId, sessionId, null, null);
 }
 
 internal static class JsonElementExtensions

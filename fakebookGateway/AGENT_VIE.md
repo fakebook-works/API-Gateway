@@ -11,7 +11,7 @@ Gateway là public GraphQL entry point cho frontend. Gateway compose nhiều Gra
 - Endpoint public chính: `/graphql`.
 - Route `/` redirect sang `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Subgraph hiện tại đã compose: `Authentication`, `SocialGraph` và `Recommendation`.
+- Subgraph hiện tại đã compose: `Authentication`, `SocialGraph`, `Recommendation` và `Payment`.
 - Subgraph dự kiến: `Search`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validate JWT local và validate active session với Authentication subgraph.
 - Refresh token model: Gateway sở hữu browser cookie. Auth trả cookie instruction; Gateway apply instruction và scrub raw refresh token khỏi public GraphQL response.
@@ -22,9 +22,10 @@ Capability hiện tại:
 
 - Expose một public GraphQL endpoint duy nhất cho frontend.
 - Load Fusion archive từ file với `.AddFileSystemConfiguration(...)`.
-- Proxy GraphQL operations tới Authentication, SocialGraph và Recommendation subgraph.
+- Proxy GraphQL operations tới Authentication, SocialGraph, Recommendation và Payment subgraph.
 - Expose SocialGraph `createUser` làm mutation đăng ký public chuẩn.
 - Expose các Home API đã authorize của SocialGraph và hydrate `RecommendationItem.post` qua internal batch lookup.
+- Expose Payment Premium operations và proxy PayOS webhook qua REST endpoint có body limit và rate limit.
 - Validate HS256 JWT access token bằng issuer, audience và signing key trong config.
 - Validate session state của access token với Auth qua internal query `validateGatewaySession`.
 - Cache kết quả Auth session validation trong một TTL ngắn.
@@ -32,7 +33,6 @@ Capability hiện tại:
 - Forward trusted identity context xuống subgraph:
   - `X-User-Id`
   - `X-Session-Id`
-  - `X-Username`
   - `X-Correlation-ID`
   - `Authorization`
   - `X-Refresh-Token`
@@ -51,6 +51,7 @@ Giới hạn hiện tại:
 
 - Public SocialGraph fields chỉ gồm registration/Home contract đã hoàn thiện; raw graph fields và domain mutation chưa audit vẫn là composition-internal.
 - Recommendation paging hiện dùng `skip`/`take` có giới hạn, chưa phải snapshot/cursor paging.
+- PayOS webhook delivery hiện đồng bộ; Payment sở hữu provider verification, idempotency, order state và retry.
 - Fusion composition hiện là manual local workflow.
 - Gateway chưa implement field-level authorization rule. Subgraph phải tự protect private operations bằng internal headers và `X-Gateway-Secret`, hoặc Gateway cần được mở rộng field policy trước khi expose sensitive fields từ subgraph yếu.
 - Fusion URLs được bake vào `gateway.far` lúc compose. Runtime config `Subgraphs:*:Url` hiện dùng cho internal client của Gateway như Auth session validation, không phải generic service discovery cho mọi Fusion transport.
@@ -101,7 +102,7 @@ Gateway config bắt buộc:
 Gateway__InternalSharedSecret
 ```
 
-Internal shared secret phải trùng với `Gateway:InternalSharedSecret` trong Authentication, SocialGraph và Recommendation. SocialGraph dùng secret này khi gọi protected internal API. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
+Internal shared secret phải trùng với `Gateway:InternalSharedSecret` trong Authentication, SocialGraph, Recommendation và Payment. SocialGraph dùng secret cho provisioning internal; Gateway dùng nó để validate Auth session và proxy Payment webhook. Nên dùng tối thiểu 32 bytes, dù Gateway hiện chỉ validate non-empty.
 
 Environment variables hữu ích:
 
@@ -119,6 +120,10 @@ Gateway__AllowedOrigins__1
 Gateway__AllowedOrigins__2
 Subgraphs__Authentication__Url
 Subgraphs__Authentication__GraphQLEndpoint
+Subgraphs__Payment__WebhookUrl
+PaymentGateway__TimeoutSeconds
+PaymentGateway__WebhookPermitLimit
+PaymentGateway__WebhookWindowSeconds
 ```
 
 Giá trị mặc định:
@@ -129,9 +134,11 @@ AuthenticationGraphQLEndpoint = http://localhost:5001/graphql
 SessionCacheSeconds = 30
 RefreshTokenCookieName = fb_refresh
 AllowedOrigins = http://localhost:3000, http://localhost:5173, http://localhost:5174
+PaymentWebhookEndpoint = http://localhost:5016/internal/webhooks/payos
+PaymentWebhookMaximumBodyBytes = 65536
 ```
 
-`Subgraphs__Authentication__Url` được internal Auth session validator của Gateway sử dụng. Fusion transport URL của Authentication nằm trong `Gateway/schema/Authentication/schema-settings.json` và được compose vào `gateway.far`.
+`Subgraphs__Authentication__Url` được internal Auth session validator của Gateway sử dụng. `Subgraphs__Payment__WebhookUrl` chỉ dành cho PayOS REST proxy. Fusion GraphQL transport URL nằm trong `Gateway/schema/<Subgraph>/schema-settings.json` tương ứng và được compose vào `gateway.far`.
 
 ## Middleware Order
 
@@ -176,7 +183,7 @@ Authenticated operation:
 Frontend -> Gateway /graphql với Authorization: Bearer <accessToken>
 Gateway strip trusted headers
 Gateway validate JWT signature, issuer, audience, nbf, exp
-Gateway lấy user_id, sid, username
+Gateway lấy user_id và sid
 Gateway gọi Auth validateGatewaySession với X-Gateway-Secret
 Gateway cache kết quả session validation trong thời gian ngắn
 Gateway lưu trusted identity context vào HttpContext.Items
@@ -203,7 +210,6 @@ Header do Gateway tạo:
 Authorization: Bearer <accessToken>
 X-User-Id: <current-user-id>
 X-Session-Id: <current-session-id>
-X-Username: <current-username>
 X-Correlation-ID: <request-correlation-id>
 X-Refresh-Token: <raw-refresh-token-from-HttpOnly-cookie>
 X-Gateway-Secret: <Gateway__InternalSharedSecret>
@@ -212,8 +218,9 @@ X-Gateway-Secret: <Gateway__InternalSharedSecret>
 Quy tắc:
 
 - Browser không được phép set trusted identity headers.
-- Gateway strip `X-User-Id`, `X-Session-Id`, `X-Username`, `X-Gateway-Secret`, và `X-Refresh-Token` từ public request.
+- Gateway strip `X-User-Id`, `X-Session-Id`, legacy `X-Username`, `X-Gateway-Secret`, và `X-Refresh-Token` từ public request.
 - Gateway tự tạo lại trusted headers trước khi gọi subgraph.
+- Gateway không tạo lại hoặc forward `X-Username`; username/profile phải được resolve từ SocialGraph.
 - Subgraph chỉ nên trust các header này khi `X-Gateway-Secret` hợp lệ và request đi qua trusted internal network path.
 - Subgraph nên dùng `X-Correlation-ID` trong logs và outgoing calls.
 - Non-Auth subgraph không đọc browser cookie và không xử lý refresh token.
@@ -283,7 +290,7 @@ Implementation notes:
 
 ## Public GraphQL Surface Hiện Tại
 
-Public surface hiện tại đến từ Authentication, SocialGraph và Recommendation.
+Public surface hiện tại đến từ Authentication, SocialGraph, Recommendation và Payment.
 
 Queries:
 
@@ -298,6 +305,8 @@ postDetail
 postDetails
 homeStories
 myStories
+premiumPlans
+premiumOrder
 ```
 
 Mutations:
@@ -319,16 +328,21 @@ createFeedPost
 createNormalStory
 createShareStory
 deleteStory
+createPremiumCheckout
 ```
 
 Internal Auth fields:
 
 ```text
 validateGatewaySession
+paymentPremiumState
 register
+setPaymentValidDate
 ```
 
-`validateGatewaySession` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`. SocialGraph tạo canonical user ID, gọi Auth `POST /internal/users` trước, rồi chạy đồng thời Search user-index và Recommendation user-embedding bằng đúng ID đó. Auth là bước bắt buộc và SocialGraph rollback nếu lỗi; hai derived projection idempotent và best-effort. Gateway chỉ route mutation đã compose, không trực tiếp orchestrate các service call này.
+`validateGatewaySession`, `paymentPremiumState`, `setPaymentValidDate` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`. SocialGraph tạo canonical user ID, gọi Auth `POST /internal/users` với email credential, ngày sinh và gender, rồi chạy đồng thời Search user-index và Recommendation user-embedding bằng đúng ID đó. Auth là bước bắt buộc và SocialGraph rollback nếu lỗi; hai derived projection idempotent và best-effort. Gateway chỉ route mutation đã compose, không trực tiếp orchestrate các service call này.
+
+Authentication chỉ định danh bằng email và không lưu username. JWT/trusted header chỉ mang user/session identity; username/profile thuộc SocialGraph.
 
 SocialGraph lookup `recommendationItem` và Recommendation field `hello` là internal. `recommendFeed` trả ranked IDs từ Recommendation; Fusion dùng lookup để batch-hydrate nullable `RecommendationItem.post` từ SocialGraph, đồng thời giữ user/group post type và viewer authorization.
 
@@ -407,6 +421,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --archive .\gateway.far `
   --env Development
 ```
@@ -420,6 +435,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Search `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --source-schema-file .\Gateway\schema\Messaging `
   --source-schema-file .\Gateway\schema\Notification `
   --source-schema-file .\Gateway\schema\Media `
@@ -434,6 +450,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --archive .\gateway.far `
   --env Production
 ```
@@ -459,7 +476,7 @@ Run:
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-Ví dụ local run với Auth port `5001`, SocialGraph port `5223`, và Gateway port `5099`:
+Ví dụ local run với Auth port `5001`, SocialGraph port `5223`, Payment port `5016`, và Gateway port `5099`:
 
 ```powershell
 $env:ASPNETCORE_URLS="http://localhost:5099"
@@ -468,10 +485,11 @@ $env:Jwt__Audience="fakebook"
 $env:Jwt__SigningKey="<same-signing-key-as-auth-at-least-32-bytes>"
 $env:Gateway__InternalSharedSecret="<same-secret-as-auth-at-least-32-bytes>"
 $env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
+$env:Subgraphs__Payment__WebhookUrl="http://localhost:5016/internal/webhooks/payos"
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-Development Fusion archive route SocialGraph tới `http://localhost:5223/graphql`, vì vậy SocialGraph phải chạy trước khi test `createUser` qua Gateway.
+Development Fusion archive route SocialGraph tới `http://localhost:5223/graphql`, Recommendation tới `http://localhost:8000/graphql`, và Payment tới `http://localhost:5016/graphql`. Hãy start các service đó trước khi test operation tương ứng qua Gateway.
 
 GraphQL endpoint:
 
@@ -542,7 +560,7 @@ Behavior khuyến nghị:
 - Với public operations, vẫn có thể require `X-Gateway-Secret` vì public client nên gọi qua Gateway.
 - Với protected operations, require valid `X-Gateway-Secret`, `X-User-Id`, và thường cả `X-Session-Id`.
 - Dùng `X-User-Id` làm current user id authoritative.
-- Dùng `X-Username` chỉ cho display/context, không dùng làm authority.
+- Resolve username/profile display data từ SocialGraph; không thêm lại vào Auth JWT hoặc trusted header.
 - Chỉ dùng `Authorization` nếu subgraph có chủ đích validate JWT riêng.
 - Không trust user id hoặc session id do browser gửi trực tiếp.
 
@@ -552,7 +570,6 @@ Context object gợi ý:
 public sealed record GatewayUserContext(
     long? UserId,
     long? SessionId,
-    string? Username,
     string CorrelationId);
 ```
 
@@ -715,6 +732,7 @@ nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
   --source-schema-file .\Gateway\schema\SocialGraph `
   --source-schema-file .\Gateway\schema\Recommendation `
+  --source-schema-file .\Gateway\schema\Payment `
   --source-schema-file .\Gateway\schema\Search `
   --archive .\gateway.far `
   --env Development
@@ -751,7 +769,7 @@ Minimum checks cho mỗi subgraph mới:
 - Protected operations fail sau logout/revoked session.
 - Browser-supplied `X-User-Id`/`X-Gateway-Secret` spoofing không bypass được auth.
 - `X-Correlation-ID` tới được subgraph logs.
-- Subgraph nhận `X-User-Id`, `X-Session-Id`, và `X-Username` cho authenticated calls.
+- Subgraph nhận `X-User-Id` và `X-Session-Id` cho authenticated calls; legacy `X-Username` không được gửi xuống.
 
 ## Guideline Phát Triển Subgraph
 
@@ -805,7 +823,7 @@ Authentication:
 
 - Đã implement.
 - Đã compose trong `gateway.far`.
-- Sở hữu identity, credentials, sessions, OTP, JWT issuing, refresh token rotation, cookie instruction contract.
+- Sở hữu email identity, credentials, sessions, OTP, JWT issuing, refresh token rotation và cookie instruction contract; không sở hữu hoặc lưu username.
 - Expose `validateGatewaySession` cho Gateway internal use.
 
 Search:
@@ -829,6 +847,13 @@ Recommendation:
 - Treat identity context như input, không phải authority cho data ownership.
 - Không write core social/media state.
 
+Payment:
+
+- Đã compose trong `gateway.far`; sở hữu Premium plans, checkout orders, PayOS signature verification, idempotency và activation retry.
+- Expose `premiumPlans`, `premiumOrder` và `createPremiumCheckout` qua GraphQL.
+- Chỉ nhận PayOS callback qua Gateway `POST /api/webhooks/payos`; Gateway giữ nguyên raw JSON bytes và chỉ forward correlation ID cùng internal secret của server.
+- Dùng Auth internal payment fields để đọc premium state và cập nhật valid date; các field này bị ẩn khỏi frontend schema.
+
 Messaging:
 
 - Protected by default.
@@ -849,7 +874,7 @@ Media:
 
 ## Testing Notes
 
-E2E runner Auth/Gateway trước đây cover 53 assertions. Phần compose SocialGraph còn được runtime smoke test riêng.
+Gateway test project đã commit hiện có 17 tests cho composition, identity/session forwarding, SocialGraph/Recommendation hydration và Payment integration.
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
@@ -865,12 +890,14 @@ E2E runner Auth/Gateway trước đây cover 53 assertions. Phần compose Socia
 - Gateway refresh bằng HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway reject spoofed internal headers.
+- Public schema expose Payment operations nhưng ẩn Auth payment/session/provisioning fields.
+- Payment Fusion forward server-owned user/session/correlation/secret headers mà không forward refresh credential.
+- PayOS proxy giữ nguyên raw bytes, enforce JSON và giới hạn 64 KiB, strip browser credentials/header giả mạo, rate limit theo IP, map status an toàn và trả 503 khi downstream lỗi.
 
-Hiện chưa có permanent test project. Nên chuyển temporary E2E runner thành committed `dotnet test` project.
+Chạy `dotnet test .\fakebookGateway.sln --configuration Release` sau mọi thay đổi schema, middleware hoặc proxy.
 
 ## Việc Nên Làm Tiếp
 
-- Thêm permanent automated tests cho Gateway proxy behavior.
 - Thêm script export schema + Fusion compose.
 - Thêm CI validation để đảm bảo `gateway.far` sync với committed source schemas.
 - Thêm health/readiness endpoints ngoài GraphQL nếu deployment cần.

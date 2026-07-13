@@ -97,8 +97,7 @@ public sealed class FusionCompositionExecutionTests :
             claims:
             [
                 new Claim(GatewayConstants.UserIdClaim, "42"),
-                new Claim(GatewayConstants.SessionIdClaim, "99"),
-                new Claim(GatewayConstants.UsernameClaim, "frontend-user")
+                new Claim(GatewayConstants.SessionIdClaim, "99")
             ],
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: credentials);

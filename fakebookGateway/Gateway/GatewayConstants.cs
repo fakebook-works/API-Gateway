@@ -11,15 +11,12 @@ public static class GatewayConstants
     public const string CookieInstructionHeader = "X-Fakebook-Refresh-Cookie-Instruction";
     public const string UserIdHeader = "X-User-Id";
     public const string SessionIdHeader = "X-Session-Id";
-    public const string UsernameHeader = "X-Username";
 
     public const string UserIdClaim = "user_id";
     public const string SessionIdClaim = "sid";
-    public const string UsernameClaim = "username";
 
     public const string UserIdItem = "Fakebook.UserId";
     public const string SessionIdItem = "Fakebook.SessionId";
-    public const string UsernameItem = "Fakebook.Username";
     public const string CookieInstructionAppliedItem = "Fakebook.CookieInstructionApplied";
 }
 
@@ -33,6 +30,4 @@ public static class GatewayClaims
             : null;
     }
 
-    public static string? GetClaimValue(this ClaimsPrincipal principal, string type) =>
-        principal.FindFirst(type)?.Value;
 }

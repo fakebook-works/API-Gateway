@@ -120,7 +120,6 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
                 ["isValid"] = true,
                 ["userId"] = 42,
                 ["sessionId"] = 99,
-                ["username"] = "frontend-user",
                 ["status"] = 0,
                 ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(30).ToString("O")
             }

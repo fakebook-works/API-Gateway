@@ -4,11 +4,13 @@ namespace fakebookGateway.Gateway;
 
 public sealed class GatewayEdgeMiddleware(RequestDelegate next)
 {
+    private const string LegacyUsernameHeader = "X-Username";
+
     private static readonly string[] TrustedRequestHeaders =
     [
         GatewayConstants.UserIdHeader,
         GatewayConstants.SessionIdHeader,
-        GatewayConstants.UsernameHeader,
+        LegacyUsernameHeader,
         GatewayConstants.GatewaySecretHeader,
         GatewayConstants.RefreshTokenHeader
     ];
@@ -95,8 +97,6 @@ public sealed class GatewaySessionValidationMiddleware(
 
         context.Items[GatewayConstants.UserIdItem] = userId.Value.ToString();
         context.Items[GatewayConstants.SessionIdItem] = sessionId.Value.ToString();
-        context.Items[GatewayConstants.UsernameItem] =
-            validation.Username ?? context.User.GetClaimValue(GatewayConstants.UsernameClaim);
 
         await next(context);
     }

@@ -10,6 +10,7 @@ type Query {
   mySessionHistory: [SessionType!]! @cost(weight: "10")
   validateGatewaySession(input: GatewaySessionValidationInput!): GatewaySessionValidationPayload!
     @cost(weight: "10")
+  paymentPremiumState(userId: ID!): PaymentPremiumState! @cost(weight: "10")
 }
 
 type Mutation {
@@ -28,6 +29,8 @@ type Mutation {
   resetPassword(input: ResetPasswordInput!): AuthActionPayload!
     @cost(weight: "10")
   changePassword(input: ChangePasswordInput!): AuthActionPayload!
+    @cost(weight: "10")
+  setPaymentValidDate(input: SetPaymentValidDateInput!): PaymentPremiumState!
     @cost(weight: "10")
 }
 
@@ -53,7 +56,6 @@ type GatewaySessionValidationPayload {
   isValid: Boolean!
   userId: Long
   sessionId: Long
-  username: String
   status: Short
   expiresAt: DateTime
 }
@@ -64,6 +66,11 @@ type LoginPayload {
   refreshTokenExpiresAt: DateTime
   refreshTokenCookie: GatewayCookieInstruction!
   user: UserType!
+}
+
+type PaymentPremiumState {
+  userId: ID!
+  validDate: DateTime
 }
 
 type RegisterPayload {
@@ -88,9 +95,10 @@ type SessionType {
 type UserType {
   userId: Long!
   email: String!
-  username: String!
   dob: Date
   displayName: String!
+  gender: Boolean
+  validDate: DateTime
   status: Short!
 }
 
@@ -128,9 +136,9 @@ input RefreshTokenInput {
 
 input RegisterInput {
   displayName: String!
-  dob: Date
+  dob: Date!
   email: String!
-  username: String!
+  gender: Boolean!
   password: String!
 }
 
@@ -146,6 +154,11 @@ input ResetPasswordInput {
   identifier: String!
   otp: String!
   newPassword: String!
+}
+
+input SetPaymentValidDateInput {
+  userId: ID!
+  validDate: DateTime!
 }
 
 input VerifyEmailInput {

@@ -8,7 +8,7 @@ Authorization: Bearer <access token>
 Content-Type: application/json
 ```
 
-Frontend khong gui `X-Gateway-Secret`, `X-User-Id`, `X-Session-Id` hoac `X-Username`. Gateway xoa cac header gia mao, validate JWT/session, roi tao trusted headers khi goi subgraph.
+Frontend khong gui `X-Gateway-Secret`, `X-User-Id` hoac `X-Session-Id`. Gateway xoa cac header gia mao, validate JWT/session, roi tao trusted headers khi goi subgraph. Header legacy `X-Username` cung bi xoa va khong duoc tao lai; username/profile phai lay tu SocialGraph.
 
 Snowflake `Long` co the vuot precision an toan cua JavaScript. Nen giu GraphQL `ID` o dang string; voi field `Long`, dung GraphQL scalar policy khong ep qua JavaScript `number` neu ID co the vuot `2^53 - 1`.
 
