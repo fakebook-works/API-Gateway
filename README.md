@@ -2,7 +2,7 @@
 
 Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 8 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
 
-The current composed subgraph is `Authentication`. Planned subgraphs include `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, and `Media`.
+The current composed subgraphs are `Authentication` and `Payment`. Planned subgraphs include `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, and `Media`.
 
 ## Features
 
@@ -14,6 +14,8 @@ The current composed subgraph is `Authentication`. Planned subgraphs include `Se
 - HttpOnly refresh-cookie handling for login, refresh, logout, and logout-all flows.
 - Public response scrubbing for raw refresh-token values.
 - CORS configuration for local frontend development.
+- Authentication registration exposes required boolean `gender` (`true` = Male, `false` = Female), while `UserType.gender` remains nullable for pre-migration users.
+- Payment Premium GraphQL composition and hardened PayOS webhook proxying.
 
 ## Requirements
 
@@ -106,11 +108,42 @@ Recompose the Fusion archive after schema changes:
 cd .\fakebookGateway
 nitro fusion compose `
   --source-schema-file .\Gateway\schema\Authentication `
+  --source-schema-file .\Gateway\schema\Payment `
   --archive .\gateway.far `
   --env Development
 ```
 
 Commit the updated schema files and `gateway.far`.
+
+The current Authentication contract includes:
+
+```graphql
+input RegisterInput {
+  displayName: String!
+  dob: Date
+  email: String!
+  gender: Boolean!
+  username: String!
+  password: String!
+}
+
+type UserType {
+  gender: Boolean
+  validDate: DateTime
+}
+```
+
+The composed public Payment surface is:
+
+```text
+premiumPlans
+premiumOrder
+createPremiumCheckout
+```
+
+Authentication's `validateGatewaySession`, `paymentPremiumState`, and `setPaymentValidDate` fields are marked `@internal` and are absent from the public schema.
+
+PayOS posts to the public Gateway route `POST /api/webhooks/payos`. Gateway accepts JSON only, limits the raw body to 64 KiB, rate limits by client IP, strips caller credentials/trusted headers, and forwards only the raw body, correlation id, and the real Gateway secret to Payment's `/internal/webhooks/payos`. Downstream bodies and headers are never exposed.
 
 ## Documentation
 

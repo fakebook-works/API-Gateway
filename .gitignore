@@ -5,3 +5,11 @@ riderModule.iml
 /_ReSharper.Caches/
 .idea
 .DS_Store
+
+# Sensitive config – chỉ commit appsettings.json (base) và *.example.json
+appsettings.Development.json
+appsettings.Production.json
+appsettings.*.json
+!appsettings.json
+!appsettings.example.json
+Properties/launchSettings.json

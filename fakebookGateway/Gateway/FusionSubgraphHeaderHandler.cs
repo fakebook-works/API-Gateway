@@ -19,35 +19,12 @@ public sealed class FusionSubgraphHeaderHandler(
             return base.SendAsync(request, cancellationToken);
         }
 
-        ResetTrustedHeaders(request);
-        CopyHeader(request, "Authorization", context.Request.Headers.Authorization.ToString());
-
-        var userId = context.Items[GatewayConstants.UserIdItem]?.ToString() ??
-                     context.User.GetLongClaim(GatewayConstants.UserIdClaim)?.ToString();
-        CopyHeader(request, GatewayConstants.UserIdHeader, userId);
-
-        var sessionId = context.Items[GatewayConstants.SessionIdItem]?.ToString() ??
-                        context.User.GetLongClaim(GatewayConstants.SessionIdClaim)?.ToString();
-        CopyHeader(request, GatewayConstants.SessionIdHeader, sessionId);
-
-        var username = context.Items[GatewayConstants.UsernameItem]?.ToString() ??
-                       context.User.GetClaimValue(GatewayConstants.UsernameClaim);
-        CopyHeader(request, GatewayConstants.UsernameHeader, username);
-
-        CopyHeader(
+        FusionTrustedHeaders.Apply(
             request,
-            GatewayConstants.CorrelationIdHeader,
-            context.Items[GatewayConstants.CorrelationIdHeader]?.ToString() ??
-            context.Request.Headers[GatewayConstants.CorrelationIdHeader].ToString());
-
-        var refreshCookieName = options.CurrentValue.RefreshTokenCookieName;
-        if (!string.IsNullOrWhiteSpace(refreshCookieName) &&
-            context.Request.Cookies.TryGetValue(refreshCookieName, out var refreshToken))
-        {
-            CopyHeader(request, GatewayConstants.RefreshTokenHeader, refreshToken);
-        }
-
-        CopyHeader(request, GatewayConstants.GatewaySecretHeader, options.CurrentValue.InternalSharedSecret);
+            context,
+            options.CurrentValue,
+            includeAuthorization: true,
+            includeRefreshToken: true);
 
         return SendAndApplyCookieInstructionAsync(request, context, cancellationToken);
     }
@@ -91,7 +68,42 @@ public sealed class FusionSubgraphHeaderHandler(
         return response;
     }
 
-    private static void ResetTrustedHeaders(HttpRequestMessage request)
+}
+
+public sealed class PaymentFusionSubgraphHeaderHandler(
+    IHttpContextAccessor httpContextAccessor,
+    IOptionsMonitor<GatewayOptions> options) : DelegatingHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var context = httpContextAccessor.HttpContext;
+        if (context is null)
+        {
+            return base.SendAsync(request, cancellationToken);
+        }
+
+        FusionTrustedHeaders.Apply(
+            request,
+            context,
+            options.CurrentValue,
+            includeAuthorization: false,
+            includeRefreshToken: false);
+
+        return base.SendAsync(request, cancellationToken);
+    }
+
+}
+
+internal static class FusionTrustedHeaders
+{
+    public static void Apply(
+        HttpRequestMessage request,
+        HttpContext context,
+        GatewayOptions options,
+        bool includeAuthorization,
+        bool includeRefreshToken)
     {
         request.Headers.Remove(GatewayConstants.UserIdHeader);
         request.Headers.Remove(GatewayConstants.SessionIdHeader);
@@ -99,13 +111,44 @@ public sealed class FusionSubgraphHeaderHandler(
         request.Headers.Remove(GatewayConstants.CorrelationIdHeader);
         request.Headers.Remove(GatewayConstants.GatewaySecretHeader);
         request.Headers.Remove(GatewayConstants.RefreshTokenHeader);
+
+        request.Headers.Remove("Authorization");
+        if (includeAuthorization)
+        {
+            Copy(request, "Authorization", context.Request.Headers.Authorization.ToString());
+        }
+        Copy(
+            request,
+            GatewayConstants.UserIdHeader,
+            context.Items[GatewayConstants.UserIdItem]?.ToString() ??
+            context.User.GetLongClaim(GatewayConstants.UserIdClaim)?.ToString());
+        Copy(
+            request,
+            GatewayConstants.SessionIdHeader,
+            context.Items[GatewayConstants.SessionIdItem]?.ToString() ??
+            context.User.GetLongClaim(GatewayConstants.SessionIdClaim)?.ToString());
+        Copy(
+            request,
+            GatewayConstants.UsernameHeader,
+            context.Items[GatewayConstants.UsernameItem]?.ToString() ??
+            context.User.GetClaimValue(GatewayConstants.UsernameClaim));
+        Copy(
+            request,
+            GatewayConstants.CorrelationIdHeader,
+            context.Items[GatewayConstants.CorrelationIdHeader]?.ToString() ??
+            context.Request.Headers[GatewayConstants.CorrelationIdHeader].ToString());
+        Copy(request, GatewayConstants.GatewaySecretHeader, options.InternalSharedSecret);
+
+        if (includeRefreshToken &&
+            !string.IsNullOrWhiteSpace(options.RefreshTokenCookieName) &&
+            context.Request.Cookies.TryGetValue(options.RefreshTokenCookieName, out var refreshToken))
+        {
+            Copy(request, GatewayConstants.RefreshTokenHeader, refreshToken);
+        }
     }
 
-    private static void CopyHeader(HttpRequestMessage request, string name, string? value)
+    private static void Copy(HttpRequestMessage request, string name, string? value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            request.Headers.TryAddWithoutValidation(name, value);
-        }
+        if (!string.IsNullOrWhiteSpace(value)) request.Headers.TryAddWithoutValidation(name, value);
     }
 }

@@ -11,7 +11,7 @@ Gateway là public GraphQL entry point cho frontend. Gateway compose nhiều Gra
 - Endpoint public chính: `/graphql`.
 - Route `/` redirect sang `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Subgraph hiện tại đã compose: `Authentication`.
+- Subgraph hiện tại đã compose: `Authentication`, `Payment`.
 - Subgraph dự kiến: `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validate JWT local và validate active session với Authentication subgraph.
 - Refresh token model: Gateway sở hữu browser cookie. Auth trả cookie instruction; Gateway apply instruction và scrub raw refresh token khỏi public GraphQL response.
@@ -47,8 +47,8 @@ Capability hiện tại:
 
 Giới hạn hiện tại:
 
-- Hiện chỉ có Authentication trong `gateway.far`.
-- Chưa có automated test project cố định.
+- Authentication và Payment hiện đã được compose trong `gateway.far`.
+- Permanent Payment webhook/Fusion tests nằm trong `fakebookGateway.Tests`.
 - Fusion composition hiện là manual local workflow.
 - Gateway chưa implement field-level authorization rule. Subgraph phải tự protect private operations bằng internal headers và `X-Gateway-Secret`, hoặc Gateway cần được mở rộng field policy trước khi expose sensitive fields từ subgraph yếu.
 - Fusion URLs được bake vào `gateway.far` lúc compose. Runtime config `Subgraphs:*:Url` hiện dùng cho internal client của Gateway như Auth session validation, không phải generic service discovery cho mọi Fusion transport.
@@ -281,7 +281,7 @@ Implementation notes:
 
 ## Public GraphQL Surface Hiện Tại
 
-Public surface hiện tại đến từ Authentication.
+Public surface hiện tại đến từ Authentication và Payment.
 
 Queries:
 
@@ -290,6 +290,8 @@ health
 me
 mySessions
 mySessionHistory
+premiumPlans
+premiumOrder
 ```
 
 Mutations:
@@ -306,15 +308,38 @@ resendEmailVerification
 requestPasswordReset
 resetPassword
 changePassword
+createPremiumCheckout
 ```
 
-Internal Auth query:
+Contract gender của Authentication:
+
+```graphql
+input RegisterInput {
+  displayName: String!
+  dob: Date
+  email: String!
+  gender: Boolean!
+  username: String!
+  password: String!
+}
+
+extend type UserType {
+  gender: Boolean
+  validDate: DateTime
+}
+```
+
+`true` là Nam và `false` là Nữ. Output nullable để vẫn đọc được identity được tạo trước migration database.
+
+Các field Auth nội bộ:
 
 ```text
 validateGatewaySession
+paymentPremiumState
+setPaymentValidDate
 ```
 
-`validateGatewaySession` tồn tại trong Authentication source schema nhưng được mark `@internal` trong Gateway schema extensions, nên không được xuất hiện trong public Gateway schema.
+Các field này tồn tại trong Authentication source schema nhưng được mark `@internal` trong Gateway schema extensions, nên không được xuất hiện trong public Gateway schema.
 
 ## Fusion Schema Layout
 
@@ -822,7 +847,7 @@ Media:
 
 ## Testing Notes
 
-E2E gần đây cover 53 assertions:
+Verification hiện tại gồm 37 Authentication E2E assertions, 14 permanent Gateway tests và baseline 31 tests của Backend-Payment:
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
@@ -836,12 +861,16 @@ E2E gần đây cover 53 assertions:
 - Gateway refresh bằng HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway reject spoofed internal headers.
+- Payment schema expose `premiumPlans`, `premiumOrder`, `createPremiumCheckout`, đồng thời Auth payment/session fields vẫn internal.
+- Payment Fusion forward identity/session/correlation/Gateway secret nhưng không forward refresh cookie.
+- PayOS proxy giữ nguyên raw bytes, strip browser/trusted spoofed headers, giới hạn JSON body 64 KiB, rate limit theo IP, map safe status và trả 503 khi network failure.
 
-Hiện chưa có permanent test project. Nên chuyển temporary E2E runner thành committed `dotnet test` project.
+Permanent Gateway webhook proxy tests nằm trong `fakebookGateway.Tests`. Tests cover raw-body preservation, trusted-header stripping, safe status mapping, input limits, network failure và IP rate limiting.
+
+Payment được compose từ `Gateway/schema/Payment`. Dùng client `payment-fusion` để Payment nhận identity, session, correlation và secret do Gateway tạo nhưng không nhận browser Authorization header hay refresh token. Public PayOS endpoint là `POST /api/webhooks/payos`; route này forward tới `Subgraphs:Payment:WebhookUrl` bằng client riêng `payment-webhook` và không bao giờ forward browser authorization, cookies, refresh token, user/session headers hay secret do caller cung cấp.
 
 ## Việc Nên Làm Tiếp
 
-- Thêm permanent automated tests cho Gateway proxy behavior.
 - Thêm script export schema + Fusion compose.
 - Thêm CI validation để đảm bảo `gateway.far` sync với committed source schemas.
 - Thêm health/readiness endpoints ngoài GraphQL nếu deployment cần.

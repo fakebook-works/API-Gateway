@@ -11,7 +11,7 @@ The Gateway is the public GraphQL entry point for the frontend. It composes mult
 - Main public endpoint: `/graphql`.
 - Root route: `/` redirects to `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Current composed subgraph: `Authentication`.
+- Current composed subgraphs: `Authentication`, `Payment`.
 - Planned subgraphs: `Search`, `SocialGraph`, `Recommendation`, `Messaging`, `Notification`, `Media`.
 - Auth model: Gateway validates JWT locally and validates active session status with the Authentication subgraph.
 - Refresh token model: Gateway owns browser cookies. Auth returns cookie instructions; Gateway applies them and scrubs raw refresh token values from public GraphQL responses.
@@ -47,8 +47,8 @@ Current capabilities:
 
 Current limitations:
 
-- Only Authentication is currently composed in `gateway.far`.
-- There is no permanent automated test project yet.
+- Authentication and Payment are currently composed in `gateway.far`.
+- Permanent Payment webhook/Fusion tests live in `fakebookGateway.Tests`.
 - Fusion composition is currently a manual local workflow.
 - The Gateway does not currently implement field-level authorization rules. Subgraphs must protect their own private operations using the internal headers and `X-Gateway-Secret`, or the Gateway must be extended with field policy before exposing sensitive fields from a weak subgraph.
 - Fusion URLs are baked into `gateway.far` during composition. Runtime `Subgraphs:*:Url` config is currently used by Gateway-owned internal clients such as Auth session validation, not as generic service discovery for every Fusion transport.
@@ -281,7 +281,7 @@ Implementation notes:
 
 ## Current Public GraphQL Surface
 
-The currently composed public surface comes from Authentication.
+The currently composed public surface comes from Authentication and Payment.
 
 Queries:
 
@@ -290,6 +290,8 @@ health
 me
 mySessions
 mySessionHistory
+premiumPlans
+premiumOrder
 ```
 
 Mutations:
@@ -306,15 +308,38 @@ resendEmailVerification
 requestPasswordReset
 resetPassword
 changePassword
+createPremiumCheckout
 ```
 
-Internal Auth query:
+Authentication gender contract:
+
+```graphql
+input RegisterInput {
+  displayName: String!
+  dob: Date
+  email: String!
+  gender: Boolean!
+  username: String!
+  password: String!
+}
+
+extend type UserType {
+  gender: Boolean
+  validDate: DateTime
+}
+```
+
+`true` means Male and `false` means Female. The output is nullable so identities created before the database migration remain readable.
+
+Internal Auth fields:
 
 ```text
 validateGatewaySession
+paymentPremiumState
+setPaymentValidDate
 ```
 
-`validateGatewaySession` exists in the Authentication source schema but is marked `@internal` in Gateway schema extensions, so it must not be visible in the public Gateway schema.
+These fields exist in the Authentication source schema but are marked `@internal` in Gateway schema extensions, so they must not be visible in the public Gateway schema.
 
 ## Fusion Schema Layout
 
@@ -822,7 +847,7 @@ Media:
 
 ## Testing Notes
 
-Recent E2E checks covered 53 assertions:
+Current verification includes 37 Authentication E2E assertions, 14 permanent Gateway tests, and the 31-test Backend-Payment baseline:
 
 - Auth direct health/register/resend/verify/login flows.
 - Auth direct session listing/history/logout/logoutAll/logoutSession.
@@ -836,12 +861,16 @@ Recent E2E checks covered 53 assertions:
 - Gateway refreshes with HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway rejects spoofed internal headers.
+- Payment schema exposes `premiumPlans`, `premiumOrder`, and `createPremiumCheckout` while Auth payment/session fields remain internal.
+- Payment Fusion forwards identity/session/correlation/Gateway secret without forwarding refresh cookies.
+- PayOS proxy preserves raw bytes, strips browser/trusted spoofed headers, limits JSON bodies to 64 KiB, rate limits by IP, maps safe statuses, and returns 503 on network failure.
 
-There is no permanent test project yet. Future improvement: move the temporary E2E runner into a committed `dotnet test` project.
+Permanent Gateway webhook proxy tests live in `fakebookGateway.Tests`. They cover raw-body preservation, trusted-header stripping, safe status mapping, input limits, network failure, and IP rate limiting.
+
+Payment integration is composed from `Gateway/schema/Payment`. Use the `payment-fusion` client so Payment receives Gateway-owned identity, session, correlation, and secret headers without receiving the browser Authorization header or refresh token. The public PayOS endpoint is `POST /api/webhooks/payos`; it forwards to the configured `Subgraphs:Payment:WebhookUrl` using the dedicated `payment-webhook` client and never forwards browser authorization, cookies, refresh tokens, user/session headers, or caller-provided secrets.
 
 ## Known Work Left
 
-- Add permanent automated tests for Gateway proxy behavior.
 - Add a script for schema export + Fusion compose.
 - Add CI validation that `gateway.far` is in sync with committed source schemas.
 - Add health/readiness endpoints outside GraphQL if deployment needs them.

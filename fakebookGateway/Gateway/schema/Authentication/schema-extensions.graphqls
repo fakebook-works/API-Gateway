@@ -1,3 +1,8 @@
 extend type Query {
   validateGatewaySession(input: GatewaySessionValidationInput!): GatewaySessionValidationPayload! @internal
+  paymentPremiumState(userId: ID!): PaymentPremiumState! @internal
+}
+
+extend type Mutation {
+  setPaymentValidDate(input: SetPaymentValidDateInput!): PaymentPremiumState! @internal
 }

@@ -40,10 +40,9 @@ public sealed class GatewayEdgeMiddleware(RequestDelegate next)
 
 public sealed class GatewaySessionValidationMiddleware(
     RequestDelegate next,
-    IAuthSessionValidator sessionValidator,
     ILogger<GatewaySessionValidationMiddleware> logger)
 {
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, IAuthSessionValidator sessionValidator)
     {
         if (!IsGraphQlRequest(context))
         {

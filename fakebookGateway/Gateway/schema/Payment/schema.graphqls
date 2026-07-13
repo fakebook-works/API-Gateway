@@ -1,0 +1,73 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  premiumPlans: [PremiumPlanOffer!]!
+  premiumOrder(orderCode: ID!): PremiumOrderView! @cost(weight: "10")
+}
+
+type Mutation {
+  createPremiumCheckout(input: CreatePremiumCheckoutInput!): PremiumCheckoutPayload!
+    @cost(weight: "10")
+}
+
+type PremiumCheckoutPayload {
+  orderCode: ID!
+  status: PaymentOrderStatus!
+  checkoutUrl: String!
+}
+
+type PremiumOrderView {
+  orderCode: ID!
+  plan: PremiumPlan!
+  amount: Int!
+  status: PaymentOrderStatus!
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  paidAt: DateTime
+  targetValidDate: DateTime
+}
+
+type PremiumPlanOffer {
+  code: PremiumPlan!
+  amount: Int!
+  durationMonths: Int!
+}
+
+input CreatePremiumCheckoutInput {
+  plan: PremiumPlan!
+}
+
+enum PaymentOrderStatus {
+  CREATED
+  PENDING
+  PAID
+  ACTIVATION_PENDING
+  ACTIVATED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+enum PremiumPlan {
+  MONTHLY
+  YEARLY
+}
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
