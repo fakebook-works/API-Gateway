@@ -108,9 +108,22 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             FieldNames(recommendationItem).OrderBy(name => name));
 
         var userType = Assert.Single(types, type => TypeName(type) == "UserType");
-        Assert.DoesNotContain("username", FieldNames(userType));
-        Assert.Contains("gender", FieldNames(userType));
+        var authUserFields = FieldNames(userType);
+        foreach (var profileField in new[] { "username", "displayName", "dob", "gender" })
+        {
+            Assert.DoesNotContain(profileField, authUserFields);
+        }
+
         Assert.Contains("validDate", FieldNames(userType));
+
+        var socialGraphCreateUserInput = Assert.Single(
+            types,
+            type => TypeName(type) == "CreateUserInput");
+        var socialProfileInputs = InputFieldNamesOrEmpty(socialGraphCreateUserInput);
+        Assert.Contains("name", socialProfileInputs);
+        Assert.Contains("birthdate", socialProfileInputs);
+        Assert.Contains("gender", socialProfileInputs);
+        Assert.Contains("location", socialProfileInputs);
 
         Assert.DoesNotContain(
             types,

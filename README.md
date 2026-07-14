@@ -105,14 +105,14 @@ mutation CreateUser($input: CreateUserInput!) {
 Registration is orchestrated behind that single mutation:
 
 1. SocialGraph creates the profile and canonical Snowflake `userId`.
-2. SocialGraph calls Authentication `POST /internal/users` with that exact ID, email/password credential, display name, date of birth, and gender. This step is required.
+2. SocialGraph calls Authentication `POST /internal/users` with only that exact ID, email, and password. This step is required.
 3. If Authentication fails, SocialGraph removes the new profile and returns a failed payload.
 4. After Authentication succeeds, SocialGraph concurrently calls Search `PUT /internal/search/indexes/{userId}` and Recommendation `PUT /internal/recommendation/users/{userId}/embedding`.
 5. Search and Recommendation provisioning are idempotent and best-effort; SocialGraph returns the canonical ID even if a derived projection is temporarily unavailable.
 
 Gateway does not call Search or Recommendation directly during registration. It exposes and routes the single SocialGraph mutation.
 
-Authentication is email-only and does not store or validate SocialGraph usernames. Profile/username reads must come from SocialGraph; Gateway trusted headers carry user ID and session ID, not username.
+Authentication is email-only and persists no SocialGraph profile fields. Name, username, birthdate, gender, location, and other profile reads must come from SocialGraph; Gateway trusted headers carry user/session identity, not profile data.
 
 ## SocialGraph Feed API
 
@@ -224,7 +224,7 @@ Commit the updated schema files and `gateway.far`.
 dotnet test .\fakebookGateway.sln
 ```
 
-The 17 permanent tests boot the composed archive, introspect the frontend-visible contract, assert Auth internal fields and identity username are absent, verify recommendation/SocialGraph hydration, validate trusted-header replacement, and cover Payment Fusion plus webhook body/header/limit/status behavior.
+The permanent tests boot the composed archive, introspect the frontend-visible contract, assert Auth internal/profile fields are absent while SocialGraph profile inputs remain public, verify recommendation/SocialGraph hydration, validate trusted-header replacement, and cover Payment Fusion plus webhook body/header/limit/status behavior.
 
 ## Documentation
 

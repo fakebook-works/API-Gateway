@@ -95,9 +95,6 @@ type SessionType {
 type UserType {
   userId: Long!
   email: String!
-  dob: Date
-  displayName: String!
-  gender: Boolean
   validDate: DateTime
   status: Short!
 }
@@ -135,10 +132,7 @@ input RefreshTokenInput {
 }
 
 input RegisterInput {
-  displayName: String!
-  dob: Date!
   email: String!
-  gender: Boolean!
   password: String!
 }
 
@@ -165,10 +159,6 @@ input VerifyEmailInput {
   identifier: String!
   otp: String!
 }
-
-"The `Date` scalar type represents a date in UTC."
-scalar Date
-  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date.html")
 
 "The `DateTime` scalar type represents a date and time with time zone offset information."
 scalar DateTime
