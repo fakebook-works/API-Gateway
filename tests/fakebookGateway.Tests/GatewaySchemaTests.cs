@@ -109,9 +109,9 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
 
         var userType = Assert.Single(types, type => TypeName(type) == "UserType");
         var authUserFields = FieldNames(userType);
-        foreach (var profileField in new[] { "username", "displayName", "dob", "gender" })
+        foreach (var unsupportedIdentityField in new[] { "username", "phone", "displayName", "dob", "gender" })
         {
-            Assert.DoesNotContain(profileField, authUserFields);
+            Assert.DoesNotContain(unsupportedIdentityField, authUserFields);
         }
 
         Assert.Contains("validDate", FieldNames(userType));

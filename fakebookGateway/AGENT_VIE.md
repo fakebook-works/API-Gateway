@@ -342,7 +342,7 @@ setPaymentValidDate
 
 `validateGatewaySession`, `paymentPremiumState`, `setPaymentValidDate` và mutation Auth `register` cũ được mark `@internal`. Đăng ký public phải gọi SocialGraph `createUser`. SocialGraph tạo canonical profile/user ID, gọi Auth `POST /internal/users` chỉ với user ID, email và password, rồi chạy đồng thời Search user-index và Recommendation user-embedding bằng đúng ID đó. Auth là bước bắt buộc và SocialGraph rollback nếu lỗi; hai derived projection idempotent và best-effort. Gateway chỉ route mutation đã compose, không trực tiếp orchestrate các service call này.
 
-Authentication chỉ định danh bằng email và không lưu SocialGraph profile field. Auth `UserType` chỉ gồm `userId`, `email`, `validDate`, `status`; JWT/trusted header chỉ mang user/session identity, không mang profile data.
+Authentication chỉ định danh bằng email, không có phone identifier và không lưu SocialGraph profile field. Auth `UserType` chỉ gồm `userId`, `email`, `validDate`, `status`; các Auth operation dùng tên `identifier` hiện yêu cầu email. JWT/trusted header chỉ mang user/session identity, không mang profile data.
 
 SocialGraph lookup `recommendationItem` và Recommendation field `hello` là internal. `recommendFeed` trả ranked IDs từ Recommendation; Fusion dùng lookup để batch-hydrate nullable `RecommendationItem.post` từ SocialGraph, đồng thời giữ user/group post type và viewer authorization.
 
@@ -890,7 +890,7 @@ Gateway test project đã commit hiện có 17 tests cho composition, identity/s
 - Gateway refresh bằng HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway reject spoofed internal headers.
-- Gateway Auth `UserType` không có profile field trong khi SocialGraph `CreateUserInput` vẫn giữ profile fields.
+- Gateway Auth `UserType` không có phone/profile field trong khi SocialGraph `CreateUserInput` vẫn giữ profile fields.
 - Public schema expose Payment operations nhưng ẩn Auth payment/session/provisioning fields.
 - Payment Fusion forward server-owned user/session/correlation/secret headers mà không forward refresh credential.
 - PayOS proxy giữ nguyên raw bytes, enforce JSON và giới hạn 64 KiB, strip browser credentials/header giả mạo, rate limit theo IP, map status an toàn và trả 503 khi downstream lỗi.

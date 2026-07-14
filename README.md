@@ -112,7 +112,7 @@ Registration is orchestrated behind that single mutation:
 
 Gateway does not call Search or Recommendation directly during registration. It exposes and routes the single SocialGraph mutation.
 
-Authentication is email-only and persists no SocialGraph profile fields. Name, username, birthdate, gender, location, and other profile reads must come from SocialGraph; Gateway trusted headers carry user/session identity, not profile data.
+Authentication is email-only, has no phone identifier, and persists no SocialGraph profile fields. Frontend login/verification/password-reset `identifier` values currently contain email addresses. Name, username, birthdate, gender, location, and other profile reads must come from SocialGraph; Gateway trusted headers carry user/session identity, not profile data.
 
 ## SocialGraph Feed API
 
@@ -224,7 +224,7 @@ Commit the updated schema files and `gateway.far`.
 dotnet test .\fakebookGateway.sln
 ```
 
-The permanent tests boot the composed archive, introspect the frontend-visible contract, assert Auth internal/profile fields are absent while SocialGraph profile inputs remain public, verify recommendation/SocialGraph hydration, validate trusted-header replacement, and cover Payment Fusion plus webhook body/header/limit/status behavior.
+The permanent tests boot the composed archive, introspect the frontend-visible contract, assert Auth phone/internal/profile fields are absent while SocialGraph profile inputs remain public, verify recommendation/SocialGraph hydration, validate trusted-header replacement, and cover Payment Fusion plus webhook body/header/limit/status behavior.
 
 ## Documentation
 

@@ -342,7 +342,7 @@ setPaymentValidDate
 
 `validateGatewaySession`, `paymentPremiumState`, `setPaymentValidDate`, and the legacy Auth `register` mutation are marked `@internal`. Public registration must call SocialGraph `createUser`. SocialGraph creates the canonical profile/user ID, calls Auth's protected `POST /internal/users` with only user ID, email, and password, then concurrently provisions the Search user index and Recommendation user embedding with that same ID. Auth is required and causes SocialGraph rollback on failure; the two derived projections are idempotent and best-effort. Gateway only routes the composed mutation and does not orchestrate those service calls.
 
-Authentication is email-only and persists no SocialGraph profile fields. Auth `UserType` contains `userId`, `email`, `validDate`, and `status`; JWTs and trusted downstream headers contain user/session identity, not profile data.
+Authentication is email-only, has no phone identifier, and persists no SocialGraph profile fields. Auth `UserType` contains `userId`, `email`, `validDate`, and `status`; Auth operations named `identifier` currently expect email. JWTs and trusted downstream headers contain user/session identity, not profile data.
 
 The SocialGraph `recommendationItem` lookup and Recommendation `hello` field are internal. `recommendFeed` returns ranked IDs from Recommendation; Fusion uses the lookup to batch-hydrate nullable `RecommendationItem.post` from SocialGraph while preserving user/group post types and viewer authorization.
 
@@ -890,7 +890,7 @@ The committed Gateway test project currently contains 17 tests covering composit
 - Gateway refreshes with HttpOnly cookie.
 - Gateway logout/logoutAll/logoutSession cookie behavior.
 - Gateway rejects spoofed internal headers.
-- Gateway Auth `UserType` remains profile-free while SocialGraph `CreateUserInput` retains profile fields.
+- Gateway Auth `UserType` remains phone-free/profile-free while SocialGraph `CreateUserInput` retains profile fields.
 - Public schema exposes Payment operations while Auth payment/session/provisioning fields stay internal.
 - Payment Fusion forwards server-owned user/session/correlation/secret headers without refresh credentials.
 - PayOS proxy preserves raw bytes, enforces JSON and 64 KiB limits, strips browser credentials/spoofed headers, rate limits by IP, maps safe statuses, and returns 503 on downstream failure.
