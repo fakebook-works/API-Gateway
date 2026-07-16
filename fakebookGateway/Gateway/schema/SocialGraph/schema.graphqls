@@ -1,46 +1,97 @@
 schema
   @link(
     url: "https://specs.apollo.dev/federation/v2.6"
-    import: ["@tag", "FieldSet"]
+    import: ["@key", "@tag", "FieldSet"]
   ) {
   query: Query
   mutation: Mutation
 }
 
 type Query {
-  recommendationItem(postId: ID!): RecommendationItem
-  object(id: Long!): SocialGraphObjectResult @cost(weight: "10")
-  association(id1: Long!, atype: Short!, cursor: String, limit: Int!): AssociationPageResult!
+  profiles(userIds: [Long!]!): [UserProfileResult!]! @cost(weight: "10")
+  groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
+  profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
-  associationCount(id1: Long!, atype: Short!): Long! @cost(weight: "10")
+  profileReels(userId: Long!, limit: Int!, cursor: String): ProfileReelPageResult!
+    @cost(weight: "10")
+  userSearchResult(referenceId: ID!): UserSearchResult @cost(weight: "10")
+  groupSearchResult(referenceId: ID!): GroupSearchResult @cost(weight: "10")
+  feedPostSearchResult(referenceId: ID!): FeedPostSearchResult
+    @cost(weight: "10")
+  groupPostSearchResult(referenceId: ID!): GroupPostSearchResult
+    @cost(weight: "10")
+  reelSearchResult(referenceId: ID!): ReelSearchResult @cost(weight: "10")
+  recommendationItem(postId: ID!): RecommendationItem
+  reelRecommendationItem(reelId: ID!): ReelRecommendationItem
   profile(userId: Long!): UserProfileResult @cost(weight: "10")
   group(groupId: Long!): GroupResult @cost(weight: "10")
   visitedGroups(userId: Long!, limit: Int!, cursor: String): VisitedGroupPageResult!
     @cost(weight: "10")
-  content(contentId: Long!): ContentResult @cost(weight: "10")
   postDetail(postId: Long!): HomePost @cost(weight: "10")
   postDetails(postIds: [Long!]!): [HomePost!]! @cost(weight: "10")
   homeStories(userId: Long!, limit: Int!, cursor: String): HomeStoryPageResult!
     @cost(weight: "10")
   myStories(userId: Long!): HomeStoryBucketResult @cost(weight: "10")
-  relationIds(id1: Long!, atype: Short!, cursor: String, limit: Int!): [Long!]!
+  friends(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  incomingFriendRequests(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  outgoingFriendRequests(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  following(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  followers(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  blockedUsers(userId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+    @cost(weight: "10")
+  memberGroups(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
+  adminGroups(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
+  relationshipState(userId: Long!): UserRelationshipStateResult
+    @cost(weight: "10")
+  groupViewerState(groupId: Long!): GroupViewerStateResult @cost(weight: "10")
+  pendingGroupJoins(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
+  groupMembers(groupId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  groupAdmins(groupId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  groupPosts(groupId: Long!, cursor: String, limit: Int!): GroupPostPageResult!
+    @cost(weight: "10")
+  groupUserPosts(groupId: Long!, userId: Long!, cursor: String, limit: Int!): GroupPostPageResult!
+    @cost(weight: "10")
+  ownedMedia(ownerId: Long!, type: Int, cursor: String, limit: Int!): MediaPageResult!
+    @cost(weight: "10")
+  likedReels(cursor: String, limit: Int!): ProfileReelPageResult!
+    @cost(weight: "10")
+  sharedReels(cursor: String, limit: Int!): ProfileReelPageResult!
+    @cost(weight: "10")
+  watchedReels(cursor: String, limit: Int!): ProfileReelPageResult!
+    @cost(weight: "10")
+  comments(targetId: Long!, cursor: String, limit: Int!): CommentPageResult!
+    @cost(weight: "10")
+  contentEngagement(targetId: Long!): ContentEngagementResult
+    @cost(weight: "10")
+  savedContent(cursor: String, limit: Int!): SavedContentPageResult!
+    @cost(weight: "10")
+  likedUsers(targetId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  storyViewers(storyId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  taggedUsers(postId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  mentionedUsers(sourceId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
+    @cost(weight: "10")
+  groupJoinRequests(groupId: Long!, cursor: String, limit: Int!): AssociationPageResult!
     @cost(weight: "10")
   reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
     @cost(weight: "10")
   _service: _Service!
+  _entities(representations: [_Any!]!): [_Entity]!
 }
 
 type Mutation {
-  addObject(otype: Short!, dataJson: String!): SocialGraphObjectResult!
-    @cost(weight: "10")
-  updateObject(id: Long!, otype: Short!, patchJson: String!): SocialGraphObjectResult
-    @cost(weight: "10")
-  deleteObject(id: Long!): Boolean! @cost(weight: "10")
-  addAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean!
-    @cost(weight: "10")
-  deleteOneAssociation(id1: Long!, atype: Short!, id2: Long!): Boolean!
-    @cost(weight: "10")
-  deleteAllAssociation(id1: Long!, atype: Short!): Boolean! @cost(weight: "10")
   createUser(input: CreateUserInput!): CreateUserPayload! @cost(weight: "10")
   updateUser(input: UpdateUserInput!): UserProfileResult @cost(weight: "10")
   deleteUser(userId: Long!): Boolean! @cost(weight: "10")
@@ -51,10 +102,17 @@ type Mutation {
     backgroundUrl: String!
     originalUrl: String
   ): UserProfileResult @cost(weight: "10")
+  removeUserAvatar(userId: Long!): UserProfileResult @cost(weight: "10")
+  removeUserBackground(userId: Long!): UserProfileResult @cost(weight: "10")
   sendFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
+    @cost(weight: "10")
+  cancelFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
     @cost(weight: "10")
   acceptFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
     @cost(weight: "10")
+  rejectFriendRequest(requesterId: Long!, receiverId: Long!): Boolean!
+    @cost(weight: "10")
+  unfriend(userId: Long!, friendId: Long!): Boolean! @cost(weight: "10")
   followUser(followerId: Long!, targetUserId: Long!): Boolean!
     @cost(weight: "10")
   unfollowUser(followerId: Long!, targetUserId: Long!): Boolean!
@@ -73,7 +131,18 @@ type Mutation {
     backgroundUrl: String!
     originalUrl: String
   ): GroupResult @cost(weight: "10")
+  removeGroupAvatar(groupId: Long!): GroupResult @cost(weight: "10")
+  removeGroupBackground(groupId: Long!): GroupResult @cost(weight: "10")
   recordGroupVisit(userId: Long!, groupId: Long!): Boolean! @cost(weight: "10")
+  requestJoinGroup(userId: Long!, groupId: Long!): Boolean! @cost(weight: "10")
+  cancelJoinGroupRequest(userId: Long!, groupId: Long!): Boolean!
+    @cost(weight: "10")
+  leaveGroup(userId: Long!, groupId: Long!): Boolean! @cost(weight: "10")
+  approveGroupJoinRequest(groupId: Long!, userId: Long!): Boolean!
+    @cost(weight: "10")
+  rejectGroupJoinRequest(groupId: Long!, userId: Long!): Boolean!
+    @cost(weight: "10")
+  inviteGroupUser(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   addGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   removeGroupMember(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   addGroupAdmin(groupId: Long!, userId: Long!): Boolean! @cost(weight: "10")
@@ -123,6 +192,32 @@ type CandidateItemResult {
   createdAt: String!
 }
 
+type CommentPageResult {
+  items: [CommentThreadItemResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type CommentThreadItemResult {
+  id: Long!
+  content: String!
+  create: String!
+  author: UserSummaryResult!
+  likeCount: Long!
+  replyCount: Long!
+  viewerHasLiked: Boolean!
+}
+
+type ContentEngagementResult {
+  targetId: Long!
+  likeCount: Long!
+  commentCount: Long!
+  shareCount: Long!
+  viewerHasLiked: Boolean!
+  viewerHasSaved: Boolean!
+  viewerHasWatched: Boolean!
+}
+
 type ContentResult {
   id: Long!
   type: Short!
@@ -154,6 +249,11 @@ type FeedPostDetail {
   media: [MediaResult!]!
 }
 
+type FeedPostSearchResult {
+  referenceId: ID!
+  post: FeedPostDetail!
+}
+
 type FeedPostSharedSource {
   id: Long!
   content: String!
@@ -168,6 +268,12 @@ type FeedPostShareStory {
   sharedSource: FeedPostSharedSource!
 }
 
+type GroupMembershipPageResult {
+  items: [GroupResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
 type GroupPostDetail {
   id: Long!
   type: Short!
@@ -177,6 +283,17 @@ type GroupPostDetail {
   author: PostAuthor!
   group: PostGroup!
   media: [MediaResult!]!
+}
+
+type GroupPostPageResult {
+  items: [GroupPostDetail!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type GroupPostSearchResult {
+  referenceId: ID!
+  post: GroupPostDetail!
 }
 
 type GroupResult {
@@ -191,6 +308,19 @@ type GroupResult {
   adminCount: Long!
 }
 
+type GroupSearchResult {
+  referenceId: ID!
+  group: GroupResult!
+}
+
+type GroupViewerStateResult {
+  groupId: Long!
+  isMember: Boolean!
+  isAdmin: Boolean!
+  joinRequestPending: Boolean!
+  canViewPosts: Boolean!
+}
+
 type HomeStoryBucketResult {
   author: UserSummaryResult!
   latestCreate: String!
@@ -199,6 +329,12 @@ type HomeStoryBucketResult {
 
 type HomeStoryPageResult {
   items: [HomeStoryBucketResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type MediaPageResult {
+  items: [MediaResult!]!
   endCursor: String
   hasNextPage: Boolean!
 }
@@ -231,9 +367,31 @@ type PostGroup {
   canJoin: Boolean!
 }
 
+type ProfilePostPageResult {
+  items: [HomePost!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type ProfileReelPageResult {
+  items: [ContentResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
 type RecommendationItem {
   postId: ID!
   post: HomePost @cost(weight: "10")
+}
+
+type ReelRecommendationItem {
+  reelId: ID!
+  reel: ContentResult @cost(weight: "10")
+}
+
+type ReelSearchResult {
+  referenceId: ID!
+  reel: ContentResult!
 }
 
 type ReelSharedSource {
@@ -250,10 +408,25 @@ type ReelShareStory {
   sharedSource: ReelSharedSource!
 }
 
-type SocialGraphObjectResult {
+type SavedContentItemResult {
   id: Long!
-  otype: Short!
-  data: String!
+  type: Short!
+  post: HomePost
+  reel: ContentResult
+}
+
+type SavedContentPageResult {
+  items: [SavedContentItemResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type User @key(fields: "id") {
+  id: Long!
+  name: String!
+  avatar: String!
+  bio: String!
+  isVerified: Boolean!
 }
 
 type UserProfileResult {
@@ -274,6 +447,29 @@ type UserProfileResult {
   followingCount: Long!
 }
 
+type UserRelationshipStateResult {
+  userId: Long!
+  isSelf: Boolean!
+  isFriend: Boolean!
+  isFollowing: Boolean!
+  followsViewer: Boolean!
+  friendRequestSent: Boolean!
+  friendRequestReceived: Boolean!
+  isBlocked: Boolean!
+  isBlockedBy: Boolean!
+}
+
+type UserSearchResult {
+  referenceId: ID!
+  user: User!
+}
+
+type UserSummaryPageResult {
+  items: [UserSummaryResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
 type UserSummaryResult {
   id: Long!
   name: String!
@@ -292,6 +488,9 @@ type VisitedGroupResult {
   avatar: String!
   name: String!
 }
+
+"Union of all types that key directive applied. This information is needed by the Apollo federation gateway."
+union _Entity = User
 
 union HomePost = FeedPostDetail | GroupPostDetail
 
@@ -381,7 +580,9 @@ input UpdateGroupInput {
 
 input UpdatePostInput {
   id: Long!
-  privacy: Int!
+  privacy: Int
+  content: String
+  media: [MediaInput!]
 }
 
 input UpdateUserInput {
@@ -421,6 +622,11 @@ directive @cost(
   | ARGUMENT_DEFINITION
   | ENUM
   | INPUT_FIELD_DEFINITION
+
+"Used to indicate a combination of fields that can be used to uniquely identify and fetch an object or interface."
+directive @key(fields: FieldSet!, resolvable: Boolean = true) repeatable on
+  | OBJECT
+  | INTERFACE
 
 "Links definitions within the document to external schemas."
 directive @link(

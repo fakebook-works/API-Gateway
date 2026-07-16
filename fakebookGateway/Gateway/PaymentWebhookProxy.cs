@@ -9,7 +9,7 @@ public sealed class PaymentGatewayOptions
     public const string SectionName = "PaymentGateway";
     public const int MaximumBodyBytes = 64 * 1024;
 
-    public string WebhookEndpoint { get; set; } = "http://localhost:5016/internal/webhooks/payos";
+    public string WebhookEndpoint { get; set; } = "http://localhost:1007/internal/webhooks/payos";
     public int TimeoutSeconds { get; set; } = 10;
     public int WebhookPermitLimit { get; set; } = 60;
     public int WebhookWindowSeconds { get; set; } = 60;
@@ -80,7 +80,7 @@ public static class PaymentWebhookProxy
             context.Items[GatewayConstants.CorrelationIdHeader]?.ToString());
         request.Headers.TryAddWithoutValidation(
             GatewayConstants.GatewaySecretHeader,
-            gatewayOptions.Value.InternalSharedSecret);
+            gatewayOptions.Value.ResolveSubgraphSecret(GatewaySubgraphs.Payment));
 
         try
         {

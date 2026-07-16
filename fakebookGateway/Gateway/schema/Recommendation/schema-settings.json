@@ -3,15 +3,15 @@
   "transports": {
     "http": {
       "url": "{{RECOMMENDATION_URL}}",
-      "clientName": "fusion"
+      "clientName": "recommendation-fusion"
     }
   },
   "environments": {
     "Development": {
-      "RECOMMENDATION_URL": "http://localhost:8000/graphql"
+      "RECOMMENDATION_URL": "http://localhost:1003/graphql"
     },
     "Production": {
-      "RECOMMENDATION_URL": "http://recommendation:8000/graphql"
+      "RECOMMENDATION_URL": "http://recommendation:1003/graphql"
     }
   }
 }

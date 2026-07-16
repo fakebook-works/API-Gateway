@@ -42,6 +42,53 @@ public sealed class FusionSubgraphHeaderHandlerTests
             capture.Headers[GatewayConstants.GatewaySecretHeader]);
     }
 
+    [Fact]
+    public async Task NamedHandler_UsesTargetSecretAndNeverForwardsRefreshOrInternalServiceHeaders()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = "Bearer access-token";
+        context.Request.Headers.Cookie = "fb_refresh=raw-refresh-token";
+        context.Items[GatewayConstants.UserIdItem] = "123";
+        context.Items[GatewayConstants.SessionIdItem] = "456";
+        context.Items[GatewayConstants.CorrelationIdHeader] = "correlation-2";
+        var capture = new CaptureHandler();
+        var handler = new FusionSubgraphHeaderHandler(
+            new HttpContextAccessor { HttpContext = context },
+            new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
+            {
+                InternalSharedSecret = "fallback-secret-at-least-32-bytes",
+                SubgraphSecrets = new SubgraphSecretsOptions
+                {
+                    Search = "search-secret-at-least-32-bytes-long"
+                }
+            }),
+            GatewaySubgraphs.Search)
+        {
+            InnerHandler = capture
+        };
+        using var client = new HttpClient(handler);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "http://search/graphql");
+        request.Headers.TryAddWithoutValidation(GatewayConstants.RefreshTokenHeader, "spoofed-refresh");
+        request.Headers.TryAddWithoutValidation(GatewayConstants.LegacyInternalUserIdHeader, "999");
+        request.Headers.TryAddWithoutValidation(
+            GatewayConstants.InternalSearchServiceSecretHeader,
+            "spoofed-internal-secret");
+        request.Headers.TryAddWithoutValidation(GatewayConstants.PaymentSecretHeader, "spoofed-payment-secret");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal("Bearer access-token", capture.Headers["Authorization"]);
+        Assert.Equal("123", capture.Headers[GatewayConstants.UserIdHeader]);
+        Assert.Equal("456", capture.Headers[GatewayConstants.SessionIdHeader]);
+        Assert.Equal(
+            "search-secret-at-least-32-bytes-long",
+            capture.Headers[GatewayConstants.GatewaySecretHeader]);
+        Assert.False(capture.Headers.ContainsKey(GatewayConstants.RefreshTokenHeader));
+        Assert.False(capture.Headers.ContainsKey(GatewayConstants.LegacyInternalUserIdHeader));
+        Assert.False(capture.Headers.ContainsKey(GatewayConstants.InternalSearchServiceSecretHeader));
+        Assert.False(capture.Headers.ContainsKey(GatewayConstants.PaymentSecretHeader));
+    }
+
     private sealed class CaptureHandler : HttpMessageHandler
     {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);

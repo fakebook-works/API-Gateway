@@ -3,15 +3,15 @@
   "transports": {
     "http": {
       "url": "{{SOCIALGRAPH_URL}}",
-      "clientName": "fusion"
+      "clientName": "socialgraph-fusion"
     }
   },
   "environments": {
     "Development": {
-      "SOCIALGRAPH_URL": "http://localhost:5223/graphql"
+      "SOCIALGRAPH_URL": "http://localhost:1002/graphql"
     },
     "Production": {
-      "SOCIALGRAPH_URL": "http://socialgraph/graphql"
+      "SOCIALGRAPH_URL": "http://social-graph:1002/graphql"
     }
   }
 }

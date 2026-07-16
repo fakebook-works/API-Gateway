@@ -29,15 +29,17 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             query =
                 """
                 query GatewayContract {
-                  __schema {
-                    queryType { fields { name } }
-                    mutationType { fields { name } }
+                    __schema {
+                      queryType { fields { name } }
+                      mutationType { fields { name } }
+                      subscriptionType { fields { name } }
                     types {
                       kind
                       name
                       fields { name }
                       inputFields { name }
                       possibleTypes { name }
+                      enumValues { name }
                     }
                   }
                 }
@@ -49,34 +51,117 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         var data = document.RootElement.GetProperty("data").GetProperty("__schema");
         var queryFields = FieldNames(data.GetProperty("queryType"));
         var mutationFields = FieldNames(data.GetProperty("mutationType"));
+        var subscriptionFields = FieldNames(data.GetProperty("subscriptionType"));
 
         Assert.Contains("visitedGroups", queryFields);
+        Assert.Contains("profiles", queryFields);
+        Assert.Contains("groups", queryFields);
+        Assert.Contains("profile", queryFields);
+        Assert.Contains("group", queryFields);
+        Assert.Contains("profilePosts", queryFields);
+        Assert.Contains("profileReels", queryFields);
+        Assert.Contains("groupUserPosts", queryFields);
+        Assert.Contains("ownedMedia", queryFields);
+        Assert.Contains("likedReels", queryFields);
+        Assert.Contains("sharedReels", queryFields);
+        Assert.Contains("watchedReels", queryFields);
+        Assert.Contains("friends", queryFields);
+        Assert.Contains("incomingFriendRequests", queryFields);
+        Assert.Contains("outgoingFriendRequests", queryFields);
+        Assert.Contains("following", queryFields);
+        Assert.Contains("followers", queryFields);
+        Assert.Contains("blockedUsers", queryFields);
+        Assert.Contains("memberGroups", queryFields);
+        Assert.Contains("adminGroups", queryFields);
+        Assert.Contains("relationshipState", queryFields);
+        Assert.Contains("groupViewerState", queryFields);
+        Assert.Contains("pendingGroupJoins", queryFields);
+        Assert.Contains("groupMembers", queryFields);
+        Assert.Contains("groupAdmins", queryFields);
+        Assert.Contains("groupPosts", queryFields);
+        Assert.Contains("comments", queryFields);
+        Assert.Contains("contentEngagement", queryFields);
+        Assert.Contains("savedContent", queryFields);
+        Assert.Contains("likedUsers", queryFields);
+        Assert.Contains("storyViewers", queryFields);
+        Assert.Contains("taggedUsers", queryFields);
+        Assert.Contains("mentionedUsers", queryFields);
+        Assert.Contains("groupJoinRequests", queryFields);
         Assert.Contains("recommendFeed", queryFields);
+        Assert.Contains("recommendReels", queryFields);
         Assert.Contains("postDetail", queryFields);
         Assert.Contains("postDetails", queryFields);
         Assert.Contains("homeStories", queryFields);
         Assert.Contains("myStories", queryFields);
         Assert.Contains("premiumPlans", queryFields);
         Assert.Contains("premiumOrder", queryFields);
+        Assert.Contains("fastSearch", queryFields);
+        Assert.Contains("searchUsers", queryFields);
+        Assert.Contains("searchGroups", queryFields);
+        Assert.Contains("searchFeedPosts", queryFields);
+        Assert.Contains("searchGroupPosts", queryFields);
+        Assert.Contains("searchReels", queryFields);
+        Assert.Contains("myConversations", queryFields);
+        Assert.Contains("conversation", queryFields);
+        Assert.Contains("conversationMessages", queryFields);
+        Assert.Contains("userPresence", queryFields);
+        Assert.Contains("notifications", queryFields);
         Assert.DoesNotContain("object", queryFields);
         Assert.DoesNotContain("association", queryFields);
         Assert.DoesNotContain("reelCandidates", queryFields);
         Assert.DoesNotContain("recommendationItem", queryFields);
+        Assert.DoesNotContain("reelRecommendationItem", queryFields);
+        Assert.DoesNotContain("userSearchResult", queryFields);
+        Assert.DoesNotContain("groupSearchResult", queryFields);
+        Assert.DoesNotContain("feedPostSearchResult", queryFields);
+        Assert.DoesNotContain("groupPostSearchResult", queryFields);
+        Assert.DoesNotContain("reelSearchResult", queryFields);
+        Assert.DoesNotContain("userById", queryFields);
         Assert.DoesNotContain("hello", queryFields);
+        Assert.DoesNotContain("_service", queryFields);
+        Assert.DoesNotContain("_entities", queryFields);
         Assert.DoesNotContain("validateGatewaySession", queryFields);
         Assert.DoesNotContain("paymentPremiumState", queryFields);
 
         Assert.Contains("createUser", mutationFields);
         Assert.Contains("recordGroupVisit", mutationFields);
         Assert.Contains("createFeedPost", mutationFields);
+        Assert.Contains("createGroupPost", mutationFields);
+        Assert.Contains("createReel", mutationFields);
+        Assert.Contains("createGroup", mutationFields);
+        Assert.Contains("updateGroup", mutationFields);
+        Assert.Contains("updatePost", mutationFields);
+        Assert.Contains("deleteContent", mutationFields);
+        Assert.Contains("removeUserAvatar", mutationFields);
+        Assert.Contains("removeUserBackground", mutationFields);
+        Assert.Contains("removeGroupAvatar", mutationFields);
+        Assert.Contains("removeGroupBackground", mutationFields);
+        Assert.Contains("inviteGroupUser", mutationFields);
+        Assert.Contains("requestJoinGroup", mutationFields);
+        Assert.Contains("approveGroupJoinRequest", mutationFields);
+        Assert.Contains("sendFriendRequest", mutationFields);
+        Assert.Contains("acceptFriendRequest", mutationFields);
+        Assert.Contains("followUser", mutationFields);
+        Assert.Contains("blockUser", mutationFields);
         Assert.Contains("createNormalStory", mutationFields);
         Assert.Contains("createShareStory", mutationFields);
         Assert.Contains("deleteStory", mutationFields);
         Assert.Contains("createPremiumCheckout", mutationFields);
+        Assert.Contains("createDirectConversation", mutationFields);
+        Assert.Contains("createGroupConversation", mutationFields);
+        Assert.Contains("sendMessage", mutationFields);
+        Assert.Contains("markConversationRead", mutationFields);
+        Assert.Contains("markNotificationRead", mutationFields);
+        Assert.Contains("markAllNotificationsRead", mutationFields);
+        Assert.Contains("recordSearchResultView", mutationFields);
         Assert.DoesNotContain("addObject", mutationFields);
-        Assert.DoesNotContain("createGroupPost", mutationFields);
         Assert.DoesNotContain("register", mutationFields);
         Assert.DoesNotContain("setPaymentValidDate", mutationFields);
+
+        Assert.Contains("conversationEvents", subscriptionFields);
+        Assert.Contains("inboxEvents", subscriptionFields);
+        Assert.Contains("presenceEvents", subscriptionFields);
+        Assert.Contains("notificationCreated", subscriptionFields);
 
         var types = data.GetProperty("types").EnumerateArray().ToArray();
         var homePost = Assert.Single(types, type => TypeName(type) == "HomePost");
@@ -97,6 +182,16 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 .Select(field => field.GetProperty("name").GetString()!)
                 .OrderBy(name => name));
 
+        var updatePostInput = Assert.Single(
+            types,
+            type => TypeName(type) == "UpdatePostInput");
+        Assert.Equal(
+            new[] { "content", "id", "media", "privacy" },
+            updatePostInput.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));
 
@@ -106,6 +201,56 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Equal(
             new[] { "post", "postId" },
             FieldNames(recommendationItem).OrderBy(name => name));
+
+        var reelRecommendationItem = Assert.Single(
+            types,
+            type => TypeName(type) == "ReelRecommendationItem");
+        Assert.Equal(
+            new[] { "reel", "reelId" },
+            FieldNames(reelRecommendationItem).OrderBy(name => name));
+
+        Assert.Equal(
+            new[] { "user" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "UserSearchResult")));
+        Assert.Equal(
+            new[] { "group" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "GroupSearchResult")));
+        Assert.Equal(
+            new[] { "post" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "FeedPostSearchResult")));
+        Assert.Equal(
+            new[] { "post" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "GroupPostSearchResult")));
+        Assert.Equal(
+            new[] { "reel" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "ReelSearchResult")));
+
+        var fusionUser = Assert.Single(types, type => TypeName(type) == "User");
+        Assert.Equal(
+            new[] { "avatar", "bio", "id", "isVerified", "name" },
+            FieldNames(fusionUser).OrderBy(name => name));
+
+        var notificationActionType = Assert.Single(
+            types,
+            type => TypeName(type) == "NotificationActionType");
+        Assert.Equal(
+            new[]
+            {
+                "COMMENT",
+                "FRIEND_ACCEPT",
+                "FRIEND_REQUEST",
+                "GROUP_INVITE",
+                "GROUP_JOIN_ACCEPTED",
+                "GROUP_JOIN_REQUEST",
+                "LIKE",
+                "MENTION",
+                "SHARE",
+                "TAG"
+            },
+            notificationActionType.GetProperty("enumValues")
+                .EnumerateArray()
+                .Select(FieldName)
+                .OrderBy(name => name));
 
         var userType = Assert.Single(types, type => TypeName(type) == "UserType");
         var authUserFields = FieldNames(userType);
@@ -166,11 +311,18 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 {
                     ["Gateway:FusionArchivePath"] = FindFusionArchive(),
                     ["Gateway:InternalSharedSecret"] = "gateway-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Authentication"] = "auth-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:SocialGraph"] = "socialgraph-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Recommendation"] = "recommendation-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Search"] = "search-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Messaging"] = "messaging-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Notification"] = "notification-test-secret-at-least-32-bytes",
+                    ["Gateway:SubgraphSecrets:Payment"] = "payment-test-secret-at-least-32-bytes",
                     ["Gateway:SessionCacheSeconds"] = "30",
                     ["Jwt:Issuer"] = "fakebook-auth",
                     ["Jwt:Audience"] = "fakebook",
                     ["Jwt:SigningKey"] = "gateway-test-jwt-key-at-least-32-bytes",
-                    ["Subgraphs:Authentication:Url"] = "http://localhost:5001/graphql"
+                    ["Subgraphs:Authentication:Url"] = "http://localhost:1001/graphql"
                 });
             });
             builder.ConfigureTestServices(services =>
@@ -179,6 +331,21 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 services
                     .AddHttpClient("fusion")
                     .ConfigurePrimaryHttpMessageHandler<TestSubgraphHandler>();
+                foreach (var clientName in new[]
+                {
+                    "auth-fusion",
+                    "socialgraph-fusion",
+                    "recommendation-fusion",
+                    "search-fusion",
+                    "messaging-fusion",
+                    "notification-fusion",
+                    "payment-fusion"
+                })
+                {
+                    services
+                        .AddHttpClient(clientName)
+                        .ConfigurePrimaryHttpMessageHandler<TestSubgraphHandler>();
+                }
                 services
                     .AddHttpClient("auth-internal")
                     .ConfigurePrimaryHttpMessageHandler<TestSubgraphHandler>();

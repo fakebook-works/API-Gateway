@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace fakebookGateway.Gateway;
 
@@ -13,6 +14,15 @@ public sealed class GraphQlCookieResponseMiddleware(
     {
         if (!context.Request.Path.StartsWithSegments("/graphql", StringComparison.OrdinalIgnoreCase))
         {
+            await next(context);
+            return;
+        }
+
+        if (AcceptsEventStream(context.Request))
+        {
+            context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+            context.Response.Headers.CacheControl = "no-cache, no-store";
+            context.Response.Headers["X-Accel-Buffering"] = "no";
             await next(context);
             return;
         }
@@ -75,6 +85,34 @@ public sealed class GraphQlCookieResponseMiddleware(
             !string.IsNullOrWhiteSpace(contentType) &&
             (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
              contentType.Contains("+json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool AcceptsEventStream(HttpRequest request)
+    {
+        foreach (var value in request.Headers.Accept)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            foreach (var candidate in value.Split(','))
+            {
+                var mediaType = candidate.AsSpan().Trim();
+                var parameterIndex = mediaType.IndexOf(';');
+                if (parameterIndex >= 0)
+                {
+                    mediaType = mediaType[..parameterIndex].TrimEnd();
+                }
+
+                if (mediaType.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool ProcessNode(JsonNode node, HttpContext context)

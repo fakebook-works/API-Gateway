@@ -7,6 +7,33 @@ namespace fakebookGateway.Gateway;
 
 public sealed class FusionSubgraphHeaderHandler(
     IHttpContextAccessor httpContextAccessor,
+    IOptionsMonitor<GatewayOptions> options,
+    string subgraphName = "") : DelegatingHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var context = httpContextAccessor.HttpContext;
+        if (context is null)
+        {
+            return base.SendAsync(request, cancellationToken);
+        }
+
+        FusionTrustedHeaders.Apply(
+            request,
+            context,
+            options.CurrentValue,
+            subgraphName,
+            includeAuthorization: true,
+            includeRefreshToken: false);
+
+        return base.SendAsync(request, cancellationToken);
+    }
+}
+
+public sealed class AuthFusionSubgraphHeaderHandler(
+    IHttpContextAccessor httpContextAccessor,
     IOptionsMonitor<GatewayOptions> options) : DelegatingHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -23,6 +50,7 @@ public sealed class FusionSubgraphHeaderHandler(
             request,
             context,
             options.CurrentValue,
+            GatewaySubgraphs.Authentication,
             includeAuthorization: true,
             includeRefreshToken: true);
 
@@ -87,6 +115,7 @@ public sealed class PaymentFusionSubgraphHeaderHandler(
             request,
             context,
             options.CurrentValue,
+            GatewaySubgraphs.Payment,
             includeAuthorization: false,
             includeRefreshToken: false);
 
@@ -102,6 +131,7 @@ internal static class FusionTrustedHeaders
         HttpRequestMessage request,
         HttpContext context,
         GatewayOptions options,
+        string subgraphName,
         bool includeAuthorization,
         bool includeRefreshToken)
     {
@@ -111,6 +141,21 @@ internal static class FusionTrustedHeaders
         request.Headers.Remove(GatewayConstants.CorrelationIdHeader);
         request.Headers.Remove(GatewayConstants.GatewaySecretHeader);
         request.Headers.Remove(GatewayConstants.RefreshTokenHeader);
+        request.Headers.Remove(GatewayConstants.LegacyInternalUserIdHeader);
+        request.Headers.Remove(GatewayConstants.InternalAuthenticationServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.InternalSocialGraphServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.InternalRecommendationServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.InternalSearchServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.InternalNotificationServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.InternalMessengerServiceSecretHeader);
+        request.Headers.Remove(GatewayConstants.PaymentSecretHeader);
+        foreach (var header in request.Headers
+                     .Select(item => item.Key)
+                     .Where(name => name.StartsWith("X-Internal-", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            request.Headers.Remove(header);
+        }
 
         request.Headers.Remove("Authorization");
         if (includeAuthorization)
@@ -132,7 +177,10 @@ internal static class FusionTrustedHeaders
             GatewayConstants.CorrelationIdHeader,
             context.Items[GatewayConstants.CorrelationIdHeader]?.ToString() ??
             context.Request.Headers[GatewayConstants.CorrelationIdHeader].ToString());
-        Copy(request, GatewayConstants.GatewaySecretHeader, options.InternalSharedSecret);
+        Copy(
+            request,
+            GatewayConstants.GatewaySecretHeader,
+            options.ResolveSubgraphSecret(subgraphName));
 
         if (includeRefreshToken &&
             !string.IsNullOrWhiteSpace(options.RefreshTokenCookieName) &&

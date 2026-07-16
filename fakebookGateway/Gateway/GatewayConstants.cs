@@ -11,6 +11,14 @@ public static class GatewayConstants
     public const string CookieInstructionHeader = "X-Fakebook-Refresh-Cookie-Instruction";
     public const string UserIdHeader = "X-User-Id";
     public const string SessionIdHeader = "X-Session-Id";
+    public const string LegacyInternalUserIdHeader = "X-Internal-User-Id";
+    public const string InternalAuthenticationServiceSecretHeader = "X-Internal-AuthenticationService-Secret";
+    public const string InternalSocialGraphServiceSecretHeader = "X-Internal-SocialGraphService-Secret";
+    public const string InternalRecommendationServiceSecretHeader = "X-Internal-RecommendationService-Secret";
+    public const string InternalSearchServiceSecretHeader = "X-Internal-SearchService-Secret";
+    public const string InternalNotificationServiceSecretHeader = "X-Internal-NotificationService-Secret";
+    public const string InternalMessengerServiceSecretHeader = "X-Internal-MessengerService-Secret";
+    public const string PaymentSecretHeader = "X-Payment-Secret";
 
     public const string UserIdClaim = "user_id";
     public const string SessionIdClaim = "sid";

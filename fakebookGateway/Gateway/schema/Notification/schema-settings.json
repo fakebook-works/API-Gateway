@@ -1,0 +1,25 @@
+{
+  "name": "Notification",
+  "transports": {
+    "http": {
+      "url": "{{NOTIFICATION_URL}}",
+      "clientName": "notification-fusion",
+      "capabilities": {
+        "subscriptions": {
+          "supported": true,
+          "formats": [
+            "text/event-stream"
+          ]
+        }
+      }
+    }
+  },
+  "environments": {
+    "Development": {
+      "NOTIFICATION_URL": "http://localhost:1005/graphql"
+    },
+    "Production": {
+      "NOTIFICATION_URL": "http://notification:1005/graphql"
+    }
+  }
+}

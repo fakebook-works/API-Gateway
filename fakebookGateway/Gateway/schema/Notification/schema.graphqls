@@ -1,0 +1,94 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Query {
+  notifications(first: Int, after: String): NotificationConnection!
+    @cost(weight: "10")
+  _service: _Service!
+  _entities(representations: [_Any!]!): [_Entity]!
+}
+
+type Mutation {
+  markNotificationRead(id: ID!): Notification @cost(weight: "10")
+  markAllNotificationsRead: Int! @cost(weight: "10")
+}
+
+type Subscription {
+  notificationCreated: Notification!
+}
+
+"This type provides a field named sdl: String! which exposes the SDL of the service's schema. This SDL (schema definition language) is a printed version of the service's schema including the annotations of federation directives. This SDL does not include the additions of the federation spec."
+type _Service {
+  sdl: String!
+}
+
+type Notification @key(fields: "id") {
+  id: ID!
+  creatorId: ID!
+  receiverId: ID!
+  actionType: NotificationActionType!
+  objectId: ID!
+  createdAt: DateTime!
+  isRead: Boolean!
+}
+
+type NotificationConnection {
+  edges: [NotificationEdge!]!
+  nodes: [Notification!]!
+  pageInfo: NotificationPageInfo!
+  unreadCount: Int!
+}
+
+type NotificationEdge {
+  cursor: String!
+  node: Notification!
+}
+
+type NotificationPageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+"Union of all types that key directive applied. This information is needed by the Apollo federation gateway."
+union _Entity = Notification
+
+enum NotificationActionType {
+  LIKE
+  COMMENT
+  TAG
+  MENTION
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  GROUP_INVITE
+  GROUP_JOIN_REQUEST
+  GROUP_JOIN_ACCEPTED
+  SHARE
+}
+
+"The _Any scalar is used to pass representations of entities from external services into the root _entities field for execution. Validation of the _Any scalar is done by matching the __typename and @external fields defined in the schema."
+scalar _Any
+
+"Scalar representing a set of fields."
+scalar _FieldSet
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
+
+"Used to indicate a combination of fields that can be used to uniquely identify and fetch an object or interface."
+directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE

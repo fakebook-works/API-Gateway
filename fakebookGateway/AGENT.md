@@ -130,11 +130,11 @@ Default Gateway values:
 
 ```text
 FusionArchivePath = gateway.far
-AuthenticationGraphQLEndpoint = http://localhost:5001/graphql
+AuthenticationGraphQLEndpoint = http://localhost:1001/graphql
 SessionCacheSeconds = 30
 RefreshTokenCookieName = fb_refresh
-AllowedOrigins = http://localhost:3000, http://localhost:5173, http://localhost:5174
-PaymentWebhookEndpoint = http://localhost:5016/internal/webhooks/payos
+AllowedOrigins = http://localhost:3001, http://localhost:5173, http://localhost:5174
+PaymentWebhookEndpoint = http://localhost:1007/internal/webhooks/payos
 PaymentWebhookMaximumBodyBytes = 65536
 ```
 
@@ -376,7 +376,7 @@ fakebookGateway/Gateway/schema/<SubgraphName>/
   },
   "environments": {
     "Development": {
-      "SUBGRAPH_NAME_URL": "http://localhost:5010/graphql"
+      "SUBGRAPH_NAME_URL": "http://localhost:1004/graphql"
     },
     "Production": {
       "SUBGRAPH_NAME_URL": "http://subgraph-service/graphql"
@@ -484,12 +484,12 @@ $env:Jwt__Issuer="fakebook-auth"
 $env:Jwt__Audience="fakebook"
 $env:Jwt__SigningKey="<same-signing-key-as-auth-at-least-32-bytes>"
 $env:Gateway__InternalSharedSecret="<same-secret-as-auth-at-least-32-bytes>"
-$env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
-$env:Subgraphs__Payment__WebhookUrl="http://localhost:5016/internal/webhooks/payos"
+$env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
+$env:Subgraphs__Payment__WebhookUrl="http://localhost:1007/internal/webhooks/payos"
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
 
-The Development Fusion archive routes SocialGraph operations to `http://localhost:5223/graphql`, Recommendation to `http://localhost:8000/graphql`, and Payment to `http://localhost:5016/graphql`. Start those services before testing their composed operations.
+The Development Fusion archive uses the canonical localhost range: Authentication `1001`, SocialGraph `1002`, Recommendation `1003`, Search `1004`, Notification `1005`, Messaging `1006`, and Payment `1007`. Start those services before testing composed operations.
 
 GraphQL endpoint:
 
@@ -675,7 +675,7 @@ Template:
   },
   "environments": {
     "Development": {
-      "SEARCH_URL": "http://localhost:5010/graphql"
+      "SEARCH_URL": "http://localhost:1004/graphql"
     },
     "Production": {
       "SEARCH_URL": "http://search/graphql"

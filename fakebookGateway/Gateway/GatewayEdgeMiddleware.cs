@@ -12,12 +12,27 @@ public sealed class GatewayEdgeMiddleware(RequestDelegate next)
         GatewayConstants.SessionIdHeader,
         LegacyUsernameHeader,
         GatewayConstants.GatewaySecretHeader,
-        GatewayConstants.RefreshTokenHeader
+        GatewayConstants.RefreshTokenHeader,
+        GatewayConstants.LegacyInternalUserIdHeader,
+        GatewayConstants.InternalAuthenticationServiceSecretHeader,
+        GatewayConstants.InternalSocialGraphServiceSecretHeader,
+        GatewayConstants.InternalRecommendationServiceSecretHeader,
+        GatewayConstants.InternalSearchServiceSecretHeader,
+        GatewayConstants.InternalNotificationServiceSecretHeader,
+        GatewayConstants.InternalMessengerServiceSecretHeader,
+        GatewayConstants.PaymentSecretHeader
     ];
 
     public async Task InvokeAsync(HttpContext context)
     {
         foreach (var header in TrustedRequestHeaders)
+        {
+            context.Request.Headers.Remove(header);
+        }
+
+        foreach (var header in context.Request.Headers.Keys
+                     .Where(name => name.StartsWith("X-Internal-", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
         {
             context.Request.Headers.Remove(header);
         }

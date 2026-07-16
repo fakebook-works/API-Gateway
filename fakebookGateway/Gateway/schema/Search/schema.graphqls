@@ -1,0 +1,100 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  "Tìm nhanh tối đa 8 User hoặc Group; dùng __typename để phân biệt loại reference."
+  fastSearch(keyword: String!): [FastSearchResult]! @cost(weight: "10")
+  "Tìm User theo từ khóa; chỉ trả referenceId để service sở hữu hydrate profile."
+  searchUsers(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
+    @cost(weight: "10")
+  "Tìm Group theo từ khóa; chỉ trả referenceId để service sở hữu hydrate dữ liệu Group."
+  searchGroups(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): GroupSearchPage!
+    @cost(weight: "10")
+  "Tìm Feed Post theo từ khóa; chỉ trả referenceId, không quyết định privacy/content."
+  searchFeedPosts(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): FeedPostSearchPage!
+    @cost(weight: "10")
+  "Tìm Group Post theo từ khóa; chỉ trả referenceId, không quyết định privacy/content."
+  searchGroupPosts(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): GroupPostSearchPage!
+    @cost(weight: "10")
+  "Tìm Reel theo từ khóa; chỉ trả referenceId, không quyết định privacy/content."
+  searchReels(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): ReelSearchPage!
+    @cost(weight: "10")
+}
+
+type Mutation {
+  "Records one authenticated viewer impression per search object and UTC day."
+  recordSearchResultView(referenceId: ID!): Boolean! @cost(weight: "10")
+}
+
+type FeedPostSearchPage {
+  items: [FeedPostSearchResult]!
+  pageInfo: SearchPageInfo!
+}
+
+"Search reference for a feed post. Content and privacy are owned by the social graph service."
+type FeedPostSearchResult {
+  referenceId: ID!
+}
+
+type GroupPostSearchPage {
+  items: [GroupPostSearchResult]!
+  pageInfo: SearchPageInfo!
+}
+
+"Search reference for a group post. Content and privacy are owned by the social graph service."
+type GroupPostSearchResult {
+  referenceId: ID!
+}
+
+type GroupSearchPage {
+  items: [GroupSearchResult]!
+  pageInfo: SearchPageInfo!
+}
+
+"Search reference for a group. Group fields are hydrated by the owning service."
+type GroupSearchResult {
+  referenceId: ID!
+}
+
+type ReelSearchPage {
+  items: [ReelSearchResult]!
+  pageInfo: SearchPageInfo!
+}
+
+"Search reference for a reel. Content and privacy are owned by the social graph service."
+type ReelSearchResult {
+  referenceId: ID!
+}
+
+type SearchPageInfo {
+  pageNumber: Int!
+  pageSize: Int!
+  hasPreviousPage: Boolean!
+  hasNextPage: Boolean!
+}
+
+type UserSearchPage {
+  items: [UserSearchResult]!
+  pageInfo: SearchPageInfo!
+}
+
+"Search reference for a user. Profile fields are hydrated by the owning service."
+type UserSearchResult {
+  referenceId: ID!
+}
+
+union FastSearchResult = UserSearchResult | GroupSearchResult
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION

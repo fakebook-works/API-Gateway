@@ -2,7 +2,7 @@
 
 Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 8 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
 
-The currently composed subgraphs are `Authentication`, `SocialGraph`, `Recommendation`, and `Payment`. Planned subgraphs include `Search`, `Messaging`, `Notification`, and `Media`.
+The composed subgraphs are `Authentication`, `SocialGraph`, `Recommendation`, `Search`, `Messaging`, `Notification`, and `Payment`. `Media` remains a direct upload service rather than a composed subgraph.
 
 ## Features
 
@@ -14,7 +14,10 @@ The currently composed subgraphs are `Authentication`, `SocialGraph`, `Recommend
 - Home stories, visited-group shortcuts, post creation, and authorization-aware post detail from SocialGraph.
 - A hydrated recommendation query: Recommendation ranks IDs and Fusion batch-resolves each `post` through SocialGraph.
 - Payment Premium queries/mutations and a hardened PayOS webhook proxy.
+- Search queries, Messaging queries/mutations/subscriptions, and Notification feed/read/subscription operations.
 - Trusted internal header forwarding to subgraphs.
+- A dedicated named HTTP client and independently configurable Gateway secret for every subgraph.
+- GraphQL-over-SSE forwarding without cookie-response buffering.
 - HttpOnly refresh-cookie handling for login, refresh, logout, and logout-all flows.
 - Public response scrubbing for raw refresh-token values.
 - CORS configuration for local frontend development.
@@ -23,11 +26,10 @@ The currently composed subgraphs are `Authentication`, `SocialGraph`, `Recommend
 
 - .NET SDK 8.x for local development.
 - Docker, if running the container image.
-- A running Authentication subgraph, usually at `http://localhost:5001/graphql`.
-- A running SocialGraph subgraph, usually at `http://localhost:5223/graphql`.
-- A running Recommendation subgraph, usually at `http://localhost:8000/graphql`.
-- A running Payment subgraph, usually at `http://localhost:5016/graphql`.
-- JWT settings must match Authentication. `Gateway:InternalSharedSecret` must match every service that validates trusted Gateway/internal calls.
+- Local subgraphs on the canonical ports: Authentication `1001`, SocialGraph `1002`,
+  Recommendation `1003`, Search `1004`, Notification `1005`, Messaging `1006`, and
+  Payment `1007`.
+- JWT settings must match Authentication. `Gateway:InternalSharedSecret` is the fallback shared secret; any `Gateway:SubgraphSecrets:<Name>` override must match that target service.
 
 ## Configuration
 
@@ -41,10 +43,17 @@ Jwt__Issuer=fakebook-auth
 Jwt__Audience=fakebook
 Jwt__SigningKey=<same signing key as Authentication>
 Gateway__InternalSharedSecret=<same shared secret as Authentication>
+Gateway__SubgraphSecrets__Authentication=<optional Auth-specific secret>
+Gateway__SubgraphSecrets__SocialGraph=<optional SocialGraph-specific secret>
+Gateway__SubgraphSecrets__Recommendation=<optional Recommendation-specific secret>
+Gateway__SubgraphSecrets__Search=<optional Search-specific secret>
+Gateway__SubgraphSecrets__Messaging=<optional Messaging-specific secret>
+Gateway__SubgraphSecrets__Notification=<optional Notification-specific secret>
+Gateway__SubgraphSecrets__Payment=<optional Payment-specific secret>
 Gateway__SessionCacheSeconds=30
 Gateway__RefreshTokenCookieName=fb_refresh
-Subgraphs__Authentication__Url=http://localhost:5001/graphql
-Subgraphs__Payment__WebhookUrl=http://localhost:5016/internal/webhooks/payos
+Subgraphs__Authentication__Url=http://localhost:1001/graphql
+Subgraphs__Payment__WebhookUrl=http://localhost:1007/internal/webhooks/payos
 PaymentGateway__TimeoutSeconds=10
 PaymentGateway__WebhookPermitLimit=60
 PaymentGateway__WebhookWindowSeconds=60
@@ -52,19 +61,24 @@ PaymentGateway__WebhookWindowSeconds=60
 
 ## Run Locally
 
-Start Authentication, SocialGraph, Recommendation, and Payment first, then run the Gateway:
+Start all composed subgraphs first, then run the Gateway. The committed `gateway.far`
+uses production DNS. Development composition writes `gateway.local.far` with canonical
+localhost ports and automatically uses the repo-local `.tools/nitro.exe` when Nitro is
+not installed globally.
 
 ```powershell
 dotnet restore .\fakebookGateway.sln
 dotnet build .\fakebookGateway\fakebookGateway.csproj
+.\fakebookGateway\compose-fusion.ps1 -Environment Development
 
 $env:ASPNETCORE_URLS="http://localhost:5099"
 $env:Jwt__Issuer="fakebook-auth"
 $env:Jwt__Audience="fakebook"
 $env:Jwt__SigningKey="<same signing key as Authentication>"
 $env:Gateway__InternalSharedSecret="<same shared secret as Authentication>"
-$env:Subgraphs__Authentication__Url="http://localhost:5001/graphql"
-$env:Subgraphs__Payment__WebhookUrl="http://localhost:5016/internal/webhooks/payos"
+$env:Gateway__FusionArchivePath="gateway.local.far"
+$env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
+$env:Subgraphs__Payment__WebhookUrl="http://localhost:1007/internal/webhooks/payos"
 
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
 ```
@@ -176,11 +190,11 @@ docker run --rm -p 5099:8080 `
   -e Jwt__SigningKey="<same signing key as Authentication>" `
   -e Gateway__InternalSharedSecret="<same shared secret as Authentication>" `
   -e Subgraphs__Authentication__Url="http://host.docker.internal:5001/graphql" `
-  -e Subgraphs__Payment__WebhookUrl="http://host.docker.internal:5016/internal/webhooks/payos" `
+  -e Subgraphs__Payment__WebhookUrl="http://host.docker.internal:1007/internal/webhooks/payos" `
   ghcr.io/fakebook-works/api-gateway:main
 ```
 
-Important: Fusion subgraph transport URLs are stored in `gateway.far`. The current development archive points Authentication to `http://localhost:5001/graphql`, SocialGraph to `http://localhost:5223/graphql`, Recommendation to `http://localhost:8000/graphql`, and Payment to `http://localhost:5016/graphql`. For Docker deployments, recompose `gateway.far` with transport URLs reachable inside the container network. Payment's REST webhook target is configured separately through `Subgraphs:Payment:WebhookUrl`.
+Important: Fusion subgraph transport URLs are stored in `gateway.far`. The committed production archive uses the internal DNS names and ports `authentication:1001`, `social-graph:1002`, `recommendation:1003`, `search:1004`, `notification:1005`, `messaging:1006`, and `payment:1007`. Payment's REST webhook target is configured separately through `Subgraphs:Payment:WebhookUrl`.
 
 Build locally instead:
 
@@ -207,13 +221,8 @@ Recompose the Fusion archive after schema changes:
 
 ```powershell
 cd .\fakebookGateway
-nitro fusion compose `
-  --source-schema-file .\Gateway\schema\Authentication `
-  --source-schema-file .\Gateway\schema\SocialGraph `
-  --source-schema-file .\Gateway\schema\Recommendation `
-  --source-schema-file .\Gateway\schema\Payment `
-  --archive .\gateway.far `
-  --env Development
+.\compose-fusion.ps1 -Environment Production
+.\compose-fusion.ps1 -Environment Development # writes gateway.local.far
 ```
 
 Commit the updated schema files and `gateway.far`.

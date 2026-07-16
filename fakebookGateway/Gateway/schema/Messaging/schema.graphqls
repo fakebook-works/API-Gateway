@@ -1,0 +1,287 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Query {
+  myConversations(first: Int! = 20, after: String): ConversationPage!
+    @cost(weight: "10")
+  conversation(id: UUID!): ConversationView! @cost(weight: "10")
+  conversationMessages(conversationId: UUID!, last: Int! = 30, before: String): MessagePage!
+    @cost(weight: "10")
+  userPresence(userIds: [Long!]!): [UserPresenceView!]! @cost(weight: "10")
+}
+
+type Mutation {
+  createDirectConversation(input: CreateDirectConversationInput!): ConversationView!
+    @cost(weight: "10")
+  createGroupConversation(input: CreateGroupConversationInput!): ConversationView!
+    @cost(weight: "10")
+  updateGroupConversation(input: UpdateGroupConversationInput!): ConversationView!
+    @cost(weight: "10")
+  addConversationMembers(input: AddConversationMembersInput!): ConversationView!
+    @cost(weight: "10")
+  removeConversationMember(input: RemoveConversationMemberInput!): ConversationView!
+    @cost(weight: "10")
+  setConversationMemberRole(input: SetConversationMemberRoleInput!): ConversationView!
+    @cost(weight: "10")
+  leaveConversation(conversationId: UUID!): ConversationView!
+    @cost(weight: "10")
+  sendMessage(input: SendMessageInput!): MessageView! @cost(weight: "10")
+  editMessage(input: EditMessageInput!): MessageView! @cost(weight: "10")
+  deleteMessage(input: DeleteMessageInput!): MessageView! @cost(weight: "10")
+  setMessageReaction(input: SetMessageReactionInput!): MessageView!
+    @cost(weight: "10")
+  markConversationDelivered(input: MarkConversationReceiptInput!): ConversationReceiptView!
+    @cost(weight: "10")
+  markConversationRead(input: MarkConversationReceiptInput!): ConversationReceiptView!
+    @cost(weight: "10")
+  setTyping(input: SetTypingInput!): TypingView! @cost(weight: "10")
+  heartbeatPresence: UserPresenceView! @cost(weight: "10")
+}
+
+type Subscription {
+  conversationEvents(conversationId: UUID!): RealtimeEvent!
+  inboxEvents: RealtimeEvent!
+  presenceEvents(userIds: [Long!]!): RealtimeEvent!
+}
+
+type ConversationPage {
+  items: [ConversationView!]!
+  pageInfo: PageInfo!
+}
+
+type ConversationParticipantView {
+  userId: Long!
+  role: ParticipantRole!
+  joinedAt: DateTime!
+  leftAt: DateTime
+  lastDeliveredSequence: Long!
+  lastReadSequence: Long!
+  user: User @cost(weight: "10")
+}
+
+type ConversationReceiptView {
+  conversationId: UUID!
+  userId: Long!
+  lastDeliveredSequence: Long!
+  lastReadSequence: Long!
+}
+
+type ConversationView {
+  id: UUID!
+  type: ConversationType!
+  title: String
+  avatarUrl: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  currentSequence: Long!
+  participants: [ConversationParticipantView!]!
+  lastMessage: MessageView
+}
+
+type MessageAttachmentView {
+  ordinal: Int!
+  url: String!
+}
+
+type MessagePage {
+  items: [MessageView!]!
+  pageInfo: PageInfo!
+}
+
+type MessageReactionView {
+  userId: Long!
+  emoji: String!
+  updatedAt: DateTime!
+  user: User @cost(weight: "10")
+}
+
+type MessageView {
+  id: UUID!
+  conversationId: UUID!
+  senderUserId: Long!
+  sequence: Long!
+  clientMessageId: UUID!
+  text: String
+  replyToMessageId: UUID
+  createdAt: DateTime!
+  editedAt: DateTime
+  deletedAt: DateTime
+  attachments: [MessageAttachmentView!]!
+  reactions: [MessageReactionView!]!
+  deleted: Boolean!
+  sender: User @cost(weight: "10")
+}
+
+type PageInfo {
+  startCursor: String
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+}
+
+type RealtimeEvent {
+  eventId: UUID!
+  kind: String!
+  conversationId: UUID
+  messageId: UUID
+  userId: Long
+  sequence: Long
+  occurredAt: DateTime!
+  expiresAt: DateTime
+}
+
+type TypingView {
+  conversationId: UUID!
+  userId: Long!
+  isTyping: Boolean!
+  expiresAt: DateTime!
+}
+
+type User @key(fields: "id") {
+  id: Long!
+}
+
+type UserPresenceView {
+  userId: Long!
+  isOnline: Boolean!
+  expiresAt: DateTime
+  updatedAt: DateTime!
+}
+
+input AddConversationMembersInput {
+  conversationId: UUID!
+  userIds: [Long!]!
+}
+
+input CreateDirectConversationInput {
+  targetUserId: Long!
+}
+
+input CreateGroupConversationInput {
+  title: String!
+  memberUserIds: [Long!]!
+  avatarUrl: String
+}
+
+input DeleteMessageInput {
+  messageId: UUID!
+}
+
+input EditMessageInput {
+  messageId: UUID!
+  text: String!
+}
+
+input MarkConversationReceiptInput {
+  conversationId: UUID!
+  sequence: Long!
+}
+
+input RemoveConversationMemberInput {
+  conversationId: UUID!
+  userId: Long!
+}
+
+input SendMessageInput {
+  conversationId: UUID!
+  clientMessageId: UUID!
+  text: String
+  attachmentUrls: [String!]
+  replyToMessageId: UUID
+}
+
+input SetConversationMemberRoleInput {
+  conversationId: UUID!
+  userId: Long!
+  role: ParticipantRole!
+}
+
+input SetMessageReactionInput {
+  messageId: UUID!
+  emoji: String
+}
+
+input SetTypingInput {
+  conversationId: UUID!
+  isTyping: Boolean!
+}
+
+input UpdateGroupConversationInput {
+  conversationId: UUID!
+  title: String
+  avatarUrl: String
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum ParticipantRole {
+  ADMIN
+  MEMBER
+}
+
+enum ScalarSerializationType {
+  STRING
+  BOOLEAN
+  INT
+  FLOAT
+  OBJECT
+  LIST
+}
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @serializeAs(
+    type: STRING
+    pattern: "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+  )
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
+scalar FieldSelectionSet
+
+"The `Long` scalar type represents a signed 64-bit integer."
+scalar Long
+  @serializeAs(type: INT)
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
+
+"The `UUID` scalar type represents a Universally Unique Identifier (UUID) as defined by RFC 9562."
+scalar UUID
+  @serializeAs(
+    type: STRING
+    pattern: "^[\\da-fA-F]{8}-[\\da-fA-F]{4}-[\\da-fA-F]{4}-[\\da-fA-F]{4}-[\\da-fA-F]{12}$"
+  )
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/uuid.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
+
+"""
+The @key directive is used to designate an entity's unique key,
+which identifies how to uniquely reference an instance of
+an entity across different source schemas.
+"""
+directive @key("The field selection set syntax." fields: FieldSelectionSet!) repeatable on
+  | OBJECT
+  | INTERFACE
+
+directive @serializeAs(
+  "The primitive type a scalar is serialized to."
+  type: [ScalarSerializationType!]!
+  "The ECMA-262 regex pattern that the serialized scalar value conforms to."
+  pattern: String
+) on SCALAR
+

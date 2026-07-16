@@ -29,12 +29,37 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
             StringComparer.OrdinalIgnoreCase);
         var service = request.RequestUri?.Port switch
         {
-            5001 => "Authentication",
-            5223 => "SocialGraph",
-            8000 => "Recommendation",
+            5001 or 1001 => "Authentication",
+            5223 or 1002 => "SocialGraph",
+            8000 or 1003 => "Recommendation",
+            5191 or 1004 => "Search",
+            5014 or 1005 => "Notification",
+            5013 or 1006 => "Messaging",
+            5016 or 1007 => "Payment",
             _ => "Unknown"
         };
         _requests.Enqueue(new CapturedRequest(service, body, headers));
+
+        if (service == "Messaging" &&
+            request.Headers.Accept.Any(value =>
+                string.Equals(value.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase)) &&
+            body.Contains("subscription", StringComparison.OrdinalIgnoreCase))
+        {
+            var eventId = "11111111-1111-1111-1111-111111111111";
+            var eventStream =
+                "event: next\n" +
+                $"data: {{\"data\":{{\"inboxEvents\":{{\"eventId\":\"{eventId}\",\"kind\":\"MESSAGE_CREATED\",\"occurredAt\":\"2026-07-16T00:00:00Z\"}}}}}}\n\n" +
+                "event: complete\n\n";
+            var streamContent = new StringContent(eventStream, Encoding.UTF8);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue("text/event-stream")
+            {
+                CharSet = "utf-8"
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = streamContent
+            };
+        }
 
         var payload = string.IsNullOrWhiteSpace(body) ? new JsonObject() : JsonNode.Parse(body)!;
         if (payload is JsonObject variableRequest &&
@@ -105,11 +130,156 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
         "Authentication" => AuthenticationResponse(),
         "Recommendation" => RecommendationResponse(request),
         "SocialGraph" => SocialGraphResponse(request),
+        "Search" => SearchResponse(request),
+        "Messaging" => MessagingResponse(request),
+        "Notification" => NotificationResponse(request),
         _ => new JsonObject
         {
             ["errors"] = new JsonArray(new JsonObject { ["message"] = "Unexpected test transport." })
         }
     };
+
+    private static JsonObject SearchResponse(JsonObject request)
+    {
+        var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        if (query.Contains("fastSearch", StringComparison.Ordinal))
+        {
+            var fieldName = GetResponseFieldName(query, "fastSearch");
+            return new JsonObject
+            {
+                ["data"] = new JsonObject
+                {
+                    [fieldName] = new JsonArray(
+                        new JsonObject
+                        {
+                            ["__typename"] = "UserSearchResult",
+                            ["referenceId"] = "501"
+                        },
+                        new JsonObject
+                        {
+                            ["__typename"] = "GroupSearchResult",
+                            ["referenceId"] = "601"
+                        })
+                }
+            };
+        }
+
+        var searchFields = new[]
+        {
+            "searchUsers",
+            "searchGroups",
+            "searchFeedPosts",
+            "searchGroupPosts",
+            "searchReels"
+        }.Where(field => query.Contains(field, StringComparison.Ordinal));
+        var data = new JsonObject();
+        foreach (var searchField in searchFields)
+        {
+            var resultType = searchField switch
+            {
+                "searchUsers" => "UserSearchResult",
+                "searchGroups" => "GroupSearchResult",
+                "searchFeedPosts" => "FeedPostSearchResult",
+                "searchGroupPosts" => "GroupPostSearchResult",
+                _ => "ReelSearchResult"
+            };
+            var referenceId = searchField switch
+            {
+                "searchUsers" => "501",
+                "searchGroups" => "601",
+                "searchFeedPosts" => "1001",
+                "searchGroupPosts" => "1002",
+                _ => "2001"
+            };
+            data[GetResponseFieldName(query, searchField)] = new JsonObject
+            {
+                ["items"] = new JsonArray(new JsonObject
+                {
+                    ["__typename"] = resultType,
+                    ["referenceId"] = referenceId
+                }),
+                ["pageInfo"] = new JsonObject
+                {
+                    ["pageNumber"] = 1,
+                    ["pageSize"] = 1,
+                    ["hasPreviousPage"] = false,
+                    ["hasNextPage"] = false
+                }
+            };
+        }
+
+        return new JsonObject { ["data"] = data };
+    }
+
+    private static JsonObject MessagingResponse(JsonObject request)
+    {
+        var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        var fieldName = GetResponseFieldName(query, "myConversations");
+        var items = query.Contains("participants", StringComparison.Ordinal)
+            ? new JsonArray(new JsonObject
+            {
+                ["id"] = "11111111-2222-3333-4444-555555555555",
+                ["participants"] = new JsonArray(new JsonObject
+                {
+                    ["userId"] = 501,
+                    ["role"] = "MEMBER",
+                    ["joinedAt"] = "2026-07-12T00:00:00Z",
+                    ["leftAt"] = null,
+                    ["lastDeliveredSequence"] = 0,
+                    ["lastReadSequence"] = 0,
+                    ["user"] = new JsonObject
+                    {
+                        ["__typename"] = "User",
+                        ["id"] = 501
+                    }
+                })
+            })
+            : new JsonArray();
+        return new JsonObject
+        {
+            ["data"] = new JsonObject
+            {
+                [fieldName] = new JsonObject
+                {
+                    ["items"] = items,
+                    ["pageInfo"] = new JsonObject
+                    {
+                        ["startCursor"] = null,
+                        ["endCursor"] = null,
+                        ["hasNextPage"] = false,
+                        ["hasPreviousPage"] = false
+                    }
+                }
+            }
+        };
+    }
+
+    private static JsonObject NotificationResponse(JsonObject request)
+    {
+        var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        var fieldName = GetResponseFieldName(query, "notifications");
+        return new JsonObject
+        {
+            ["data"] = new JsonObject
+            {
+                [fieldName] = new JsonObject
+                {
+                    ["nodes"] = new JsonArray(new JsonObject
+                    {
+                        ["id"] = "7001",
+                        ["actionType"] = "LIKE"
+                    }),
+                    ["edges"] = new JsonArray(),
+                    ["pageInfo"] = new JsonObject
+                    {
+                        ["hasNextPage"] = false,
+                        ["endCursor"] = null
+                    },
+                    ["unreadCount"] = 1
+                }
+            }
+        };
+    }
 
     private static JsonObject AuthenticationResponse() => new()
     {
@@ -129,6 +299,19 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
     private static JsonObject RecommendationResponse(JsonObject request)
     {
         var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        if (query.Contains("recommendReels", StringComparison.Ordinal))
+        {
+            var reelsFieldName = GetResponseFieldName(query, "recommendReels");
+            return new JsonObject
+            {
+                ["data"] = new JsonObject
+                {
+                    [reelsFieldName] = new JsonArray(
+                        new JsonObject { ["reelId"] = "2001" })
+                }
+            };
+        }
+
         var fieldName = GetResponseFieldName(query, "recommendFeed");
         return new JsonObject
         {
@@ -144,8 +327,101 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
     private static JsonObject SocialGraphResponse(JsonObject request)
     {
         var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        if (query.Contains("userById", StringComparison.Ordinal))
+        {
+            var userId = FindId(request["variables"], "id");
+            return LookupResponse(query, "userById", SearchUser(long.Parse(userId)));
+        }
+
+        if (query.Contains("_entities", StringComparison.Ordinal))
+        {
+            var userId = FindId(request["variables"], "id");
+            return new JsonObject
+            {
+                ["data"] = new JsonObject
+                {
+                    [GetResponseFieldName(query, "_entities")] = new JsonArray(
+                        new JsonObject
+                        {
+                            ["__typename"] = "User",
+                            ["id"] = long.Parse(userId),
+                            ["name"] = $"search-user-{userId}",
+                            ["avatar"] = "search-user.jpg",
+                            ["bio"] = "search user",
+                            ["isVerified"] = true
+                        })
+                }
+            };
+        }
+
+        var searchLookups = new JsonObject();
+        if (query.Contains("userSearchResult", StringComparison.Ordinal))
+        {
+            const string referenceId = "501";
+            searchLookups[GetResponseFieldName(query, "userSearchResult")] = new JsonObject
+            {
+                ["referenceId"] = referenceId,
+                ["user"] = SearchUser(501)
+            };
+        }
+
+        if (query.Contains("groupSearchResult", StringComparison.Ordinal))
+        {
+            const string referenceId = "601";
+            searchLookups[GetResponseFieldName(query, "groupSearchResult")] = new JsonObject
+            {
+                ["referenceId"] = referenceId,
+                ["group"] = SearchGroup(601)
+            };
+        }
+
+        if (query.Contains("feedPostSearchResult", StringComparison.Ordinal))
+        {
+            const string referenceId = "1001";
+            searchLookups[GetResponseFieldName(query, "feedPostSearchResult")] = new JsonObject
+            {
+                ["referenceId"] = referenceId,
+                ["post"] = Post(referenceId)
+            };
+        }
+
+        if (query.Contains("groupPostSearchResult", StringComparison.Ordinal))
+        {
+            const string referenceId = "1002";
+            searchLookups[GetResponseFieldName(query, "groupPostSearchResult")] = new JsonObject
+            {
+                ["referenceId"] = referenceId,
+                ["post"] = Post(referenceId)
+            };
+        }
+
+        if (query.Contains("reelSearchResult", StringComparison.Ordinal))
+        {
+            const string referenceId = "2001";
+            searchLookups[GetResponseFieldName(query, "reelSearchResult")] = new JsonObject
+            {
+                ["referenceId"] = referenceId,
+                ["reel"] = Reel(referenceId)
+            };
+        }
+
+        if (searchLookups.Count > 0)
+        {
+            return new JsonObject { ["data"] = searchLookups };
+        }
+
+        if (query.Contains("reelRecommendationItem", StringComparison.Ordinal))
+        {
+            var reelId = FindId(request["variables"], "reelId");
+            return LookupResponse(query, "reelRecommendationItem", new JsonObject
+            {
+                ["reelId"] = reelId,
+                ["reel"] = Reel(reelId)
+            });
+        }
+
         var fieldName = GetResponseFieldName(query, "recommendationItem");
-        var postId = FindPostId(request["variables"]);
+        var postId = FindId(request["variables"], "postId");
         return new JsonObject
         {
             ["data"] = new JsonObject
@@ -158,6 +434,49 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
             }
         };
     }
+
+    private static JsonObject LookupResponse(string query, string field, JsonObject value) =>
+        new()
+        {
+            ["data"] = new JsonObject
+            {
+                [GetResponseFieldName(query, field)] = value
+            }
+        };
+
+    private static JsonObject SearchGroup(long id) => new()
+    {
+        ["id"] = id,
+        ["avatar"] = "search-group.jpg",
+        ["background"] = "search-group-background.jpg",
+        ["name"] = $"search-group-{id}",
+        ["bio"] = "search group",
+        ["privacy"] = 0,
+        ["create"] = "2026-07-12T00:00:00Z",
+        ["memberCount"] = 10,
+        ["adminCount"] = 1
+    };
+
+    private static JsonObject SearchUser(long id) => new()
+    {
+        ["__typename"] = "User",
+        ["id"] = id,
+        ["name"] = $"search-user-{id}",
+        ["avatar"] = "search-user.jpg",
+        ["bio"] = "search user",
+        ["isVerified"] = true
+    };
+
+    private static JsonObject Reel(string reelId) => new()
+    {
+        ["id"] = long.Parse(reelId),
+        ["type"] = 5,
+        ["content"] = "recommended-reel",
+        ["privacy"] = 0,
+        ["create"] = "2026-07-12T00:00:00Z",
+        ["authorId"] = 201,
+        ["media"] = new JsonArray()
+    };
 
     private static JsonObject Post(string postId)
     {
@@ -205,19 +524,19 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
         ["canFollow"] = true
     };
 
-    private static string FindPostId(JsonNode? node)
+    private static string FindId(JsonNode? node, string fieldName)
     {
         if (node is JsonObject obj)
         {
             foreach (var property in obj)
             {
-                if (property.Key.Contains("postId", StringComparison.OrdinalIgnoreCase) &&
+                if (property.Key.Contains(fieldName, StringComparison.OrdinalIgnoreCase) &&
                     property.Value is JsonValue value)
                 {
                     return value.ToString();
                 }
 
-                var nested = FindPostId(property.Value);
+                var nested = FindId(property.Value, fieldName);
                 if (!string.IsNullOrWhiteSpace(nested))
                 {
                     return nested;
@@ -228,7 +547,7 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
         {
             foreach (var item in array)
             {
-                var nested = FindPostId(item);
+                var nested = FindId(item, fieldName);
                 if (!string.IsNullOrWhiteSpace(nested))
                 {
                     return nested;

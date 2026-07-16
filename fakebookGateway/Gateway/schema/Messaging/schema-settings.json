@@ -1,0 +1,25 @@
+{
+  "name": "Messaging",
+  "transports": {
+    "http": {
+      "url": "{{MESSAGING_URL}}",
+      "clientName": "messaging-fusion",
+      "capabilities": {
+        "subscriptions": {
+          "supported": true,
+          "formats": [
+            "text/event-stream"
+          ]
+        }
+      }
+    }
+  },
+  "environments": {
+    "Development": {
+      "MESSAGING_URL": "http://localhost:1006/graphql"
+    },
+    "Production": {
+      "MESSAGING_URL": "http://messaging:1006/graphql"
+    }
+  }
+}

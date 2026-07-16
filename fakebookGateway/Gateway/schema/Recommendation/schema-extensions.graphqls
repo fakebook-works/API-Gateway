@@ -5,3 +5,7 @@ extend type Query {
 extend type RecommendationItem {
   postId: ID! @shareable
 }
+
+extend type ReelRecommendationItem {
+  reelId: ID! @shareable
+}

@@ -8,10 +8,10 @@
   },
   "environments": {
     "Development": {
-      "AUTHENTICATION_URL": "http://localhost:5001/graphql"
+      "AUTHENTICATION_URL": "http://localhost:1001/graphql"
     },
     "Production": {
-      "AUTHENTICATION_URL": "http://authentication/graphql"
+      "AUTHENTICATION_URL": "http://authentication:1001/graphql"
     }
   }
 }

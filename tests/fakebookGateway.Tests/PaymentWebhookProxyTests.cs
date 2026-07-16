@@ -291,7 +291,7 @@ public sealed class PaymentWebhookProxyTests
                     ["Jwt:SigningKey"] = SigningKey,
                     ["Gateway:InternalSharedSecret"] = GatewaySecret,
                     ["Gateway:FusionArchivePath"] = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../fakebookGateway/gateway.far")),
-                    ["Subgraphs:Authentication:Url"] = "http://localhost:5001/graphql",
+                    ["Subgraphs:Authentication:Url"] = "http://localhost:1001/graphql",
                     ["Subgraphs:Payment:WebhookUrl"] = "http://payment.test/internal/webhooks/payos",
                     ["PaymentGateway:WebhookPermitLimit"] = webhookPermitLimit.ToString()
                 }));

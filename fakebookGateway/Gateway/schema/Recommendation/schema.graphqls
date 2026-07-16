@@ -1,8 +1,18 @@
 type Query {
   hello: String!
   recommendFeed(userId: ID!, skip: Int! = 0, take: Int! = 20): [RecommendationItem!]!
+  recommendReels(userId: ID!, mode: ReelRecommendationMode! = FOR_YOU, skip: Int! = 0, take: Int! = 20): [ReelRecommendationItem!]!
 }
 
 type RecommendationItem {
   postId: ID!
+}
+
+type ReelRecommendationItem {
+  reelId: ID!
+}
+
+enum ReelRecommendationMode {
+  FOR_YOU
+  FOLLOWING
 }

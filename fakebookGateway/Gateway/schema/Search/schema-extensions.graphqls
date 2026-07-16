@@ -1,0 +1,19 @@
+extend type UserSearchResult {
+  referenceId: ID! @shareable @inaccessible
+}
+
+extend type GroupSearchResult {
+  referenceId: ID! @shareable @inaccessible
+}
+
+extend type FeedPostSearchResult {
+  referenceId: ID! @shareable @inaccessible
+}
+
+extend type GroupPostSearchResult {
+  referenceId: ID! @shareable @inaccessible
+}
+
+extend type ReelSearchResult {
+  referenceId: ID! @shareable @inaccessible
+}

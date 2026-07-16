@@ -62,7 +62,7 @@ public sealed class AuthSessionValidator(
                 options: JsonOptions)
         };
 
-        var secret = options.CurrentValue.InternalSharedSecret;
+        var secret = options.CurrentValue.ResolveSubgraphSecret(GatewaySubgraphs.Authentication);
         if (!string.IsNullOrWhiteSpace(secret))
         {
             request.Headers.TryAddWithoutValidation(GatewayConstants.GatewaySecretHeader, secret);
