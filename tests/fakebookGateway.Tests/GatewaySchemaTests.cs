@@ -61,7 +61,12 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("profilePosts", queryFields);
         Assert.Contains("profileReels", queryFields);
         Assert.Contains("groupUserPosts", queryFields);
-        Assert.Contains("ownedMedia", queryFields);
+        Assert.Contains("userPhotos", queryFields);
+        Assert.Contains("groupPhotos", queryFields);
+        Assert.Contains("groupUserPhotos", queryFields);
+        Assert.Contains("myFeedPhotoCandidates", queryFields);
+        Assert.Contains("groupPhotoCandidates", queryFields);
+        Assert.DoesNotContain("ownedMedia", queryFields);
         Assert.Contains("likedReels", queryFields);
         Assert.Contains("sharedReels", queryFields);
         Assert.Contains("watchedReels", queryFields);
@@ -176,7 +181,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             types,
             type => TypeName(type) == "CreateFeedPostInput");
         Assert.Equal(
-            new[] { "authorId", "content", "media", "privacy" },
+            new[] { "authorId", "content", "media", "mentionedUserIds", "privacy", "taggedUserIds" },
             createFeedPostInput.GetProperty("inputFields")
                 .EnumerateArray()
                 .Select(field => field.GetProperty("name").GetString()!)
@@ -194,6 +199,12 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
 
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));
+        var feedPost = Assert.Single(types, type => TypeName(type) == "FeedPostDetail");
+        Assert.Contains("sharedSource", FieldNames(feedPost));
+        var sharedPostSource = Assert.Single(types, type => TypeName(type) == "SharedPostSourceResult");
+        Assert.Equal(
+            new[] { "author", "content", "id", "isAvailable", "media", "type" },
+            FieldNames(sharedPostSource).OrderBy(name => name));
 
         var recommendationItem = Assert.Single(
             types,
@@ -222,12 +233,23 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             new[] { "post" },
             FieldNames(Assert.Single(types, type => TypeName(type) == "GroupPostSearchResult")));
         Assert.Equal(
-            new[] { "reel" },
+            new[] { "author", "reel" },
             FieldNames(Assert.Single(types, type => TypeName(type) == "ReelSearchResult")));
 
         var fusionUser = Assert.Single(types, type => TypeName(type) == "User");
         Assert.Equal(
-            new[] { "avatar", "bio", "id", "isVerified", "name" },
+            new[]
+            {
+                "avatar",
+                "bio",
+                "followerCount",
+                "followingCount",
+                "friendCount",
+                "id",
+                "isVerified",
+                "name",
+                "privacy"
+            },
             FieldNames(fusionUser).OrderBy(name => name));
 
         var notificationActionType = Assert.Single(

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
@@ -19,6 +20,8 @@ public sealed class AuthSessionValidator(
     IOptionsMonitor<GatewayOptions> options,
     ILogger<AuthSessionValidator> logger) : IAuthSessionValidator
 {
+    private readonly ConcurrentDictionary<string, Lazy<Task<GatewaySessionValidationResult>>> _inflight = new();
+
     private const string GraphQlQuery = """
         query ValidateGatewaySession($input: GatewaySessionValidationInput!) {
           validateGatewaySession(input: $input) {
@@ -44,7 +47,37 @@ public sealed class AuthSessionValidator(
             return cached;
         }
 
-        var request = new HttpRequestMessage(HttpMethod.Post, string.Empty)
+        var pending = _inflight.GetOrAdd(
+            cacheKey,
+            _ => new Lazy<Task<GatewaySessionValidationResult>>(
+                () => ValidateCoreAsync(userId, sessionId),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        var task = pending.Value;
+        try
+        {
+            return await task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            if (task.IsCompleted)
+            {
+                if (_inflight.TryGetValue(cacheKey, out var current) && ReferenceEquals(current, pending))
+                {
+                    _inflight.TryRemove(cacheKey, out _);
+                }
+            }
+        }
+    }
+
+    private async Task<GatewaySessionValidationResult> ValidateCoreAsync(long userId, long sessionId)
+    {
+        var cacheKey = $"auth-session:{userId}:{sessionId}";
+        if (cache.TryGetValue(cacheKey, out GatewaySessionValidationResult? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, string.Empty)
         {
             Content = JsonContent.Create(
                 new
@@ -69,7 +102,7 @@ public sealed class AuthSessionValidator(
         }
 
         var client = httpClientFactory.CreateClient("auth-internal");
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, CancellationToken.None);
         if (!response.IsSuccessStatusCode)
         {
             logger.LogWarning(
@@ -78,11 +111,13 @@ public sealed class AuthSessionValidator(
                 userId,
                 sessionId);
 
-            return GatewaySessionValidationResult.Invalid(userId, sessionId);
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(CancellationToken.None);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: CancellationToken.None);
         var root = document.RootElement;
         if (root.TryGetProperty("errors", out var errors) && errors.GetArrayLength() > 0)
         {
@@ -91,14 +126,18 @@ public sealed class AuthSessionValidator(
                 userId,
                 sessionId);
 
-            return GatewaySessionValidationResult.Invalid(userId, sessionId);
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
         }
 
         if (!root.TryGetProperty("data", out var data) ||
             !data.TryGetProperty("validateGatewaySession", out var validation) ||
             validation.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
-            return GatewaySessionValidationResult.Invalid(userId, sessionId);
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
         }
 
         var result = new GatewaySessionValidationResult(
@@ -114,7 +153,9 @@ public sealed class AuthSessionValidator(
 
     private void CacheResult(string cacheKey, GatewaySessionValidationResult result)
     {
-        var ttlSeconds = Math.Max(1, options.CurrentValue.SessionCacheSeconds);
+        var ttlSeconds = result.IsValid
+            ? Math.Max(1, options.CurrentValue.SessionCacheSeconds)
+            : Math.Max(1, options.CurrentValue.InvalidSessionCacheSeconds);
         var ttl = TimeSpan.FromSeconds(ttlSeconds);
 
         if (result.ExpiresAt is not null)

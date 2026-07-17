@@ -8,7 +8,7 @@
   },
   "environments": {
     "Development": {
-      "SOCIALGRAPH_URL": "http://localhost:1002/graphql"
+      "SOCIALGRAPH_URL": "http://127.0.0.1:1002/graphql"
     },
     "Production": {
       "SOCIALGRAPH_URL": "http://social-graph:1002/graphql"

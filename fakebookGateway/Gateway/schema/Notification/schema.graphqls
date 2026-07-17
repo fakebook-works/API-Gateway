@@ -5,7 +5,7 @@ schema {
 }
 
 type Query {
-  notifications(first: Int, after: String): NotificationConnection!
+  notifications(first: Int, after: String, unreadOnly: Boolean): NotificationConnection!
     @cost(weight: "10")
   _service: _Service!
   _entities(representations: [_Any!]!): [_Entity]!

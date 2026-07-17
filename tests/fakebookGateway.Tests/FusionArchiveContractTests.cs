@@ -52,20 +52,20 @@ public sealed class FusionArchiveContractTests
     }
 
     [Fact]
-    public void LocalArchive_UsesCanonicalLocalhostPortsAndNamedClients()
+    public void LocalArchive_UsesCanonicalLoopbackPortsAndNamedClients()
     {
         using var archive = ZipFile.OpenRead(FindFusionArchive("gateway.local.far"));
         using var settings = ReadJson(archive, "gateway/2.0.0/gateway-settings.json");
         var sources = settings.RootElement.GetProperty("sourceSchemas");
         var expected = new Dictionary<string, (string Url, string Client)>
         {
-            ["Authentication"] = ("http://localhost:1001/graphql", "auth-fusion"),
-            ["SocialGraph"] = ("http://localhost:1002/graphql", "socialgraph-fusion"),
-            ["Recommendation"] = ("http://localhost:1003/graphql", "recommendation-fusion"),
-            ["Search"] = ("http://localhost:1004/graphql", "search-fusion"),
-            ["Notification"] = ("http://localhost:1005/graphql", "notification-fusion"),
-            ["Messaging"] = ("http://localhost:1006/graphql", "messaging-fusion"),
-            ["Payment"] = ("http://localhost:1007/graphql", "payment-fusion")
+            ["Authentication"] = ("http://127.0.0.1:1001/graphql", "auth-fusion"),
+            ["SocialGraph"] = ("http://127.0.0.1:1002/graphql", "socialgraph-fusion"),
+            ["Recommendation"] = ("http://127.0.0.1:1003/graphql", "recommendation-fusion"),
+            ["Search"] = ("http://127.0.0.1:1004/graphql", "search-fusion"),
+            ["Notification"] = ("http://127.0.0.1:1005/graphql", "notification-fusion"),
+            ["Messaging"] = ("http://127.0.0.1:1006/graphql", "messaging-fusion"),
+            ["Payment"] = ("http://127.0.0.1:1007/graphql", "payment-fusion")
         };
 
         foreach (var (sourceName, transportContract) in expected)

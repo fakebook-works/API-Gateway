@@ -61,7 +61,15 @@ type Query {
     @cost(weight: "10")
   groupUserPosts(groupId: Long!, userId: Long!, cursor: String, limit: Int!): GroupPostPageResult!
     @cost(weight: "10")
-  ownedMedia(ownerId: Long!, type: Int, cursor: String, limit: Int!): MediaPageResult!
+  userPhotos(userId: Long!, cursor: String, limit: Int!): PhotoPageResult!
+    @cost(weight: "10")
+  groupPhotos(groupId: Long!, cursor: String, limit: Int!): PhotoPageResult!
+    @cost(weight: "10")
+  groupUserPhotos(groupId: Long!, userId: Long!, cursor: String, limit: Int!): PhotoPageResult!
+    @cost(weight: "10")
+  myFeedPhotoCandidates(cursor: String, limit: Int!): PhotoPageResult!
+    @cost(weight: "10")
+  groupPhotoCandidates(groupId: Long!, cursor: String, limit: Int!): PhotoPageResult!
     @cost(weight: "10")
   likedReels(cursor: String, limit: Int!): ProfileReelPageResult!
     @cost(weight: "10")
@@ -95,12 +103,17 @@ type Mutation {
   createUser(input: CreateUserInput!): CreateUserPayload! @cost(weight: "10")
   updateUser(input: UpdateUserInput!): UserProfileResult @cost(weight: "10")
   deleteUser(userId: Long!): Boolean! @cost(weight: "10")
-  changeUserAvatar(userId: Long!, avatarUrl: String!, originalUrl: String): UserProfileResult
-    @cost(weight: "10")
+  changeUserAvatar(
+    userId: Long!
+    avatarUrl: String!
+    originalUrl: String
+    privacy: Int
+  ): UserProfileResult @cost(weight: "10")
   changeUserBackground(
     userId: Long!
     backgroundUrl: String!
     originalUrl: String
+    privacy: Int
   ): UserProfileResult @cost(weight: "10")
   removeUserAvatar(userId: Long!): UserProfileResult @cost(weight: "10")
   removeUserBackground(userId: Long!): UserProfileResult @cost(weight: "10")
@@ -124,7 +137,7 @@ type Mutation {
   createGroup(input: CreateGroupInput!): GroupResult! @cost(weight: "10")
   updateGroup(input: UpdateGroupInput!): GroupResult @cost(weight: "10")
   deleteGroup(groupId: Long!): Boolean! @cost(weight: "10")
-  changeGroupAvatar(groupId: Long!, avatarUrl: String!): GroupResult
+  changeGroupAvatar(groupId: Long!, avatarUrl: String!, originalUrl: String): GroupResult
     @cost(weight: "10")
   changeGroupBackground(
     groupId: Long!
@@ -247,6 +260,7 @@ type FeedPostDetail {
   create: String!
   author: PostAuthor!
   media: [MediaResult!]!
+  sharedSource: SharedPostSourceResult
 }
 
 type FeedPostSearchResult {
@@ -324,17 +338,12 @@ type GroupViewerStateResult {
 type HomeStoryBucketResult {
   author: UserSummaryResult!
   latestCreate: String!
+  hasUnseen: Boolean!
   stories: [HomeStory!]!
 }
 
 type HomeStoryPageResult {
   items: [HomeStoryBucketResult!]!
-  endCursor: String
-  hasNextPage: Boolean!
-}
-
-type MediaPageResult {
-  items: [MediaResult!]!
   endCursor: String
   hasNextPage: Boolean!
 }
@@ -350,6 +359,21 @@ type NormalStory {
   content: String!
   create: String!
   media: [MediaResult!]!
+}
+
+type PhotoItemResult {
+  media: MediaResult!
+  contentId: Long!
+  contentType: Short!
+  create: String!
+  authorId: Long!
+  groupId: Long
+}
+
+type PhotoPageResult {
+  items: [PhotoItemResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
 }
 
 type PostAuthor {
@@ -392,6 +416,7 @@ type ReelRecommendationItem {
 type ReelSearchResult {
   referenceId: ID!
   reel: ContentResult!
+  author: UserSummaryResult!
 }
 
 type ReelSharedSource {
@@ -421,12 +446,25 @@ type SavedContentPageResult {
   hasNextPage: Boolean!
 }
 
+type SharedPostSourceResult {
+  id: Long!
+  isAvailable: Boolean!
+  type: Short
+  content: String
+  author: UserSummaryResult
+  media: [MediaResult!]!
+}
+
 type User @key(fields: "id") {
   id: Long!
   name: String!
   avatar: String!
   bio: String!
   isVerified: Boolean!
+  friendCount: Long!
+  followerCount: Long!
+  followingCount: Long!
+  privacy: Int!
 }
 
 type UserProfileResult {
@@ -440,7 +478,7 @@ type UserProfileResult {
   location: String!
   privacy: Int!
   create: String!
-  verify: String!
+  verify: String
   isVerified: Boolean!
   friendCount: Long!
   followerCount: Long!
@@ -507,6 +545,8 @@ input CreateFeedPostInput {
   content: String!
   privacy: Int!
   media: [MediaInput!]
+  taggedUserIds: [Long!]
+  mentionedUserIds: [Long!]
 }
 
 input CreateGroupInput {
@@ -523,6 +563,7 @@ input CreateGroupPostInput {
   groupId: Long!
   content: String!
   media: [MediaInput!]
+  mentionedUserIds: [Long!]
 }
 
 input CreateNormalStoryInput {

@@ -16,7 +16,7 @@
   },
   "environments": {
     "Development": {
-      "NOTIFICATION_URL": "http://localhost:1005/graphql"
+      "NOTIFICATION_URL": "http://127.0.0.1:1005/graphql"
     },
     "Production": {
       "NOTIFICATION_URL": "http://notification:1005/graphql"

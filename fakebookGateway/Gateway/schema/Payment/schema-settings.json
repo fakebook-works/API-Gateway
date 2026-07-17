@@ -8,7 +8,7 @@
   },
   "environments": {
     "Development": {
-      "PAYMENT_URL": "http://localhost:1007/graphql"
+      "PAYMENT_URL": "http://127.0.0.1:1007/graphql"
     },
     "Production": {
       "PAYMENT_URL": "http://payment:1007/graphql"

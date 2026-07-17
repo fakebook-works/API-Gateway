@@ -8,7 +8,7 @@
   },
   "environments": {
     "Development": {
-      "SEARCH_URL": "http://localhost:1004/graphql"
+      "SEARCH_URL": "http://127.0.0.1:1004/graphql"
     },
     "Production": {
       "SEARCH_URL": "http://search:1004/graphql"

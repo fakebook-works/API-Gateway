@@ -9,6 +9,7 @@ public sealed class GatewayOptions
     public string InternalSharedSecret { get; set; } = string.Empty;
     public SubgraphSecretsOptions SubgraphSecrets { get; set; } = new();
     public int SessionCacheSeconds { get; set; } = 30;
+    public int InvalidSessionCacheSeconds { get; set; } = 2;
     public int AuthSessionValidationTimeoutSeconds { get; set; } = 5;
     public string RefreshTokenCookieName { get; set; } = "fb_refresh";
     public string RefreshTokenCookiePath { get; set; } = "/";

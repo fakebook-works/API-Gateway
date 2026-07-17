@@ -8,7 +8,7 @@
   },
   "environments": {
     "Development": {
-      "RECOMMENDATION_URL": "http://localhost:1003/graphql"
+      "RECOMMENDATION_URL": "http://127.0.0.1:1003/graphql"
     },
     "Production": {
       "RECOMMENDATION_URL": "http://recommendation:1003/graphql"
