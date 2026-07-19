@@ -79,6 +79,52 @@ public sealed class FusionArchiveContractTests
         AssertSseCapability(sources.GetProperty("Notification"));
     }
 
+    [Theory]
+    [InlineData("gateway.far")]
+    [InlineData("gateway.local.far")]
+    public void Archive_ContainsSocialGraphUserEntityLookupPlan(string archiveName)
+    {
+        using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));
+        var sourceSchema = ReadText(archive, "source-schemas/SocialGraph/schema.graphqls");
+        var gatewaySchema = ReadText(archive, "gateway/2.0.0/gateway.graphqls");
+
+        Assert.Contains("type User @key(fields: \"id\")", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains(
+            "field: \"userById(id: Long!): User\"",
+            gatewaySchema,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("gateway.far")]
+    [InlineData("gateway.local.far")]
+    public void Archive_ContainsMessagingAttachmentMetadataContract(string archiveName)
+    {
+        using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));
+        var sourceSchema = ReadText(archive, "source-schemas/Messaging/schema.graphqls");
+
+        foreach (var field in new[]
+                 {
+                     "assetId: String",
+                     "mediaType: String",
+                     "contentType: String",
+                     "originalName: String",
+                     "sizeBytes: Long",
+                     "width: Int",
+                     "height: Int",
+                     "durationMs: Long",
+                     "thumbnailUrl: String"
+                 })
+        {
+            Assert.Contains(field, sourceSchema, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(
+            "attachments: [SendMessageAttachmentInput!]",
+            sourceSchema,
+            StringComparison.Ordinal);
+    }
+
     private static void AssertSseCapability(JsonElement source)
     {
         var formats = source
@@ -100,6 +146,14 @@ public sealed class FusionArchiveContractTests
         Assert.NotNull(entry);
         using var stream = entry.Open();
         return JsonDocument.Parse(stream);
+    }
+
+    private static string ReadText(ZipArchive archive, string entryName)
+    {
+        var entry = archive.GetEntry(entryName);
+        Assert.NotNull(entry);
+        using var reader = new StreamReader(entry.Open());
+        return reader.ReadToEnd();
     }
 
     private static string FindFusionArchive(string archiveName = "gateway.far") => Path.GetFullPath(

@@ -7,9 +7,12 @@ schema {
 type Query {
   myConversations(first: Int! = 20, after: String): ConversationPage!
     @cost(weight: "10")
+  myDirectConversations(first: Int! = 40, after: String): ConversationPage!
+    @cost(weight: "10")
   conversation(id: UUID!): ConversationView! @cost(weight: "10")
   conversationMessages(conversationId: UUID!, last: Int! = 30, before: String): MessagePage!
     @cost(weight: "10")
+  message(id: UUID!): MessageView! @cost(weight: "10")
   userPresence(userIds: [Long!]!): [UserPresenceView!]! @cost(weight: "10")
 }
 
@@ -84,6 +87,15 @@ type ConversationView {
 type MessageAttachmentView {
   ordinal: Int!
   url: String!
+  assetId: String
+  mediaType: String
+  contentType: String
+  originalName: String
+  sizeBytes: Long
+  width: Int
+  height: Int
+  durationMs: Long
+  thumbnailUrl: String
 }
 
 type MessagePage {
@@ -185,12 +197,26 @@ input RemoveConversationMemberInput {
   userId: Long!
 }
 
+input SendMessageAttachmentInput {
+  url: String
+  assetId: String
+  mediaType: String
+  contentType: String
+  originalName: String
+  sizeBytes: Long
+  width: Int
+  height: Int
+  durationMs: Long
+  thumbnailUrl: String
+}
+
 input SendMessageInput {
   conversationId: UUID!
   clientMessageId: UUID!
   text: String
   attachmentUrls: [String!]
   replyToMessageId: UUID
+  attachments: [SendMessageAttachmentInput!]
 }
 
 input SetConversationMemberRoleInput {
@@ -284,4 +310,3 @@ directive @serializeAs(
   "The ECMA-262 regex pattern that the serialized scalar value conforms to."
   pattern: String
 ) on SCALAR
-

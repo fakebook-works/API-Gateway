@@ -9,6 +9,12 @@ type Query {
   "Tìm User theo từ khóa; chỉ trả referenceId để service sở hữu hydrate profile."
   searchUsers(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
     @cost(weight: "10")
+  "Searches only users who already have a direct Messenger conversation with the authenticated viewer."
+  searchDirectContacts(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
+    @cost(weight: "10")
+  "Searches only accepted friends of the authenticated viewer."
+  searchFriends(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
+    @cost(weight: "10")
   "Tìm Group theo từ khóa; chỉ trả referenceId để service sở hữu hydrate dữ liệu Group."
   searchGroups(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): GroupSearchPage!
     @cost(weight: "10")

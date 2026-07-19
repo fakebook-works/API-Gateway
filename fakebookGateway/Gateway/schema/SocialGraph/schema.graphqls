@@ -9,6 +9,10 @@ schema
 
 type Query {
   profiles(userIds: [Long!]!): [UserProfileResult!]! @cost(weight: "10")
+  friendSuggestions(userId: Long!, limit: Int!): [FriendSuggestionResult!]!
+    @cost(weight: "10")
+  friendRelationProfiles(userId: Long!, associationType: Short!, limit: Int!): [UserProfileResult!]!
+    @cost(weight: "10")
   groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
   profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
@@ -219,6 +223,7 @@ type CommentThreadItemResult {
   likeCount: Long!
   replyCount: Long!
   viewerHasLiked: Boolean!
+  mentions: [MentionUserResult!]
 }
 
 type ContentEngagementResult {
@@ -261,6 +266,8 @@ type FeedPostDetail {
   author: PostAuthor!
   media: [MediaResult!]!
   sharedSource: SharedPostSourceResult
+  mentions: [MentionUserResult!]
+  taggedUsers: [UserSummaryResult!]
 }
 
 type FeedPostSearchResult {
@@ -282,6 +289,12 @@ type FeedPostShareStory {
   sharedSource: FeedPostSharedSource!
 }
 
+type FriendSuggestionResult {
+  profile: UserProfileResult!
+  mutualFriendCount: Int!
+  mutualFriends: [UserSummaryResult!]!
+}
+
 type GroupMembershipPageResult {
   items: [GroupResult!]!
   endCursor: String
@@ -297,6 +310,7 @@ type GroupPostDetail {
   author: PostAuthor!
   group: PostGroup!
   media: [MediaResult!]!
+  mentions: [MentionUserResult!]
 }
 
 type GroupPostPageResult {
@@ -352,6 +366,12 @@ type MediaResult {
   id: Long!
   type: Int!
   url: String!
+}
+
+type MentionUserResult {
+  userId: Long!
+  name: String!
+  available: Boolean!
 }
 
 type NormalStory {
@@ -453,6 +473,7 @@ type SharedPostSourceResult {
   content: String
   author: UserSummaryResult
   media: [MediaResult!]!
+  mentions: [MentionUserResult!]
 }
 
 type User @key(fields: "id") {
