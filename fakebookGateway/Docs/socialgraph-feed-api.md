@@ -37,6 +37,11 @@ query RecommendedFeed($userId: ID!, $skip: Int! = 0, $take: Int! = 20) {
         create
         author { id name avatar isVerified canFollow }
         media { id type url }
+        sharedSource {
+          id isAvailable type content privacy create
+          author { id name avatar isVerified }
+          media { id type url }
+        }
       }
       ... on GroupPostDetail {
         id
@@ -103,6 +108,11 @@ query PostDetail($postId: Long!) {
       id type content privacy create
       author { id name avatar isVerified canFollow }
       media { id type url }
+      sharedSource {
+        id isAvailable type content privacy create
+        author { id name avatar isVerified }
+        media { id type url }
+      }
     }
     ... on GroupPostDetail {
       id type content privacy create
@@ -167,6 +177,8 @@ query HomeStories($userId: Long!, $limit: Int!, $cursor: String) {
     items {
       author { id name avatar isVerified }
       latestCreate
+      hasUnseen
+      unseenCount
       stories {
         __typename
         ... on NormalStory { id content create media { id type url } }
@@ -186,7 +198,7 @@ query HomeStories($userId: Long!, $limit: Int!, $cursor: String) {
 }
 ```
 
-`homeStories` paging theo author bucket, limit clamp `1..50`. `myStories(userId)` tra bucket cua viewer hoac null. Mutation canonical la `createNormalStory`, `createShareStory`, `deleteStory`; khong co `createStory`.
+`homeStories` paging theo author bucket, limit clamp `1..50`. `unseenCount` là số story trong bucket chưa có cạnh `Watched` từ viewer và `hasUnseen` tương đương `unseenCount > 0`. `myStories(userId)` tra bucket cua viewer hoac null. Mutation canonical la `createNormalStory`, `createShareStory`, `deleteStory`; khong co `createStory`.
 
 ## Error Handling
 

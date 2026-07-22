@@ -176,7 +176,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         var types = data.GetProperty("types").EnumerateArray().ToArray();
         var homePost = Assert.Single(types, type => TypeName(type) == "HomePost");
         Assert.Equal(
-            new[] { "FeedPostDetail", "GroupPostDetail" },
+            new[] { "FeedPostDetail", "GroupPostDetail", "ReelDetail" },
             homePost.GetProperty("possibleTypes")
                 .EnumerateArray()
                 .Select(TypeName)
@@ -202,6 +202,16 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 .Select(field => field.GetProperty("name").GetString()!)
                 .OrderBy(name => name));
 
+        var createCommentInput = Assert.Single(
+            types,
+            type => TypeName(type) == "CreateCommentInput");
+        Assert.Equal(
+            new[] { "authorId", "content", "media", "targetId" },
+            createCommentInput.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));
         Assert.Contains("mentions", FieldNames(groupPost));
@@ -209,13 +219,22 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("sharedSource", FieldNames(feedPost));
         Assert.Contains("mentions", FieldNames(feedPost));
         Assert.Contains("taggedUsers", FieldNames(feedPost));
+        var reelDetail = Assert.Single(types, type => TypeName(type) == "ReelDetail");
+        Assert.Contains("privacy", FieldNames(reelDetail));
+        Assert.Contains("mentions", FieldNames(reelDetail));
+        Assert.Contains("media", FieldNames(reelDetail));
         var sharedPostSource = Assert.Single(types, type => TypeName(type) == "SharedPostSourceResult");
         Assert.Equal(
-            new[] { "author", "content", "id", "isAvailable", "media", "mentions", "type" },
+            new[] { "author", "content", "create", "id", "isAvailable", "media", "mentions", "privacy", "type" },
             FieldNames(sharedPostSource).OrderBy(name => name));
 
         var commentThreadItem = Assert.Single(types, type => TypeName(type) == "CommentThreadItemResult");
         Assert.Contains("mentions", FieldNames(commentThreadItem));
+        Assert.Contains("media", FieldNames(commentThreadItem));
+        Assert.Contains("canFollowAuthor", FieldNames(commentThreadItem));
+        Assert.Contains("isFollowingAuthor", FieldNames(commentThreadItem));
+        var contentEngagement = Assert.Single(types, type => TypeName(type) == "ContentEngagementResult");
+        Assert.Contains("viewCount", FieldNames(contentEngagement));
         var mentionUser = Assert.Single(types, type => TypeName(type) == "MentionUserResult");
         Assert.Equal(
             new[] { "available", "name", "userId" },

@@ -223,7 +223,10 @@ type CommentThreadItemResult {
   likeCount: Long!
   replyCount: Long!
   viewerHasLiked: Boolean!
+  canFollowAuthor: Boolean!
+  isFollowingAuthor: Boolean!
   mentions: [MentionUserResult!]
+  media: MediaResult
 }
 
 type ContentEngagementResult {
@@ -231,6 +234,7 @@ type ContentEngagementResult {
   likeCount: Long!
   commentCount: Long!
   shareCount: Long!
+  viewCount: Long!
   viewerHasLiked: Boolean!
   viewerHasSaved: Boolean!
   viewerHasWatched: Boolean!
@@ -353,6 +357,7 @@ type HomeStoryBucketResult {
   author: UserSummaryResult!
   latestCreate: String!
   hasUnseen: Boolean!
+  unseenCount: Int!
   stories: [HomeStory!]!
 }
 
@@ -428,6 +433,17 @@ type RecommendationItem {
   post: HomePost @cost(weight: "10")
 }
 
+type ReelDetail {
+  id: Long!
+  type: Short!
+  content: String!
+  privacy: Int!
+  create: String!
+  author: PostAuthor!
+  media: [MediaResult!]!
+  mentions: [MentionUserResult!]
+}
+
 type ReelRecommendationItem {
   reelId: ID!
   reel: ContentResult @cost(weight: "10")
@@ -474,6 +490,8 @@ type SharedPostSourceResult {
   author: UserSummaryResult
   media: [MediaResult!]!
   mentions: [MentionUserResult!]
+  privacy: Int
+  create: String
 }
 
 type User @key(fields: "id") {
@@ -551,7 +569,7 @@ type VisitedGroupResult {
 "Union of all types that key directive applied. This information is needed by the Apollo federation gateway."
 union _Entity = User
 
-union HomePost = FeedPostDetail | GroupPostDetail
+union HomePost = FeedPostDetail | ReelDetail | GroupPostDetail
 
 union HomeStory = NormalStory | FeedPostShareStory | ReelShareStory
 
@@ -559,6 +577,7 @@ input CreateCommentInput {
   authorId: Long!
   targetId: Long!
   content: String!
+  media: MediaInput
 }
 
 input CreateFeedPostInput {
@@ -597,6 +616,7 @@ input CreateReelInput {
   authorId: Long!
   content: String!
   media: MediaInput
+  privacy: Int! = 0
 }
 
 input CreateShareStoryInput {
