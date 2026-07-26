@@ -173,6 +173,7 @@ type Mutation {
   createGroupPost(input: CreateGroupPostInput!): ContentResult!
     @cost(weight: "10")
   updatePost(input: UpdatePostInput!): ContentResult @cost(weight: "10")
+  updateComment(input: UpdateCommentInput!): ContentResult @cost(weight: "10")
   deleteContent(contentId: Long!): Boolean! @cost(weight: "10")
   createComment(input: CreateCommentInput!): ContentResult! @cost(weight: "10")
   createNormalStory(input: CreateNormalStoryInput!): NormalStory!
@@ -658,6 +659,13 @@ input SharePostInput {
   sourceId: Long!
   content: String!
   privacy: Int!
+}
+
+input UpdateCommentInput {
+  id: Long!
+  content: String
+  media: MediaInput
+  clearMedia: Boolean! = false
 }
 
 input UpdateGroupInput {
