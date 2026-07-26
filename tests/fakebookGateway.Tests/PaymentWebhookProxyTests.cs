@@ -82,7 +82,7 @@ public sealed class PaymentWebhookProxyTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(body, downstream.Body);
         Assert.Equal("application/json", downstream.ContentType);
-        Assert.Equal(GatewaySecret, downstream.Header("X-Gateway-Secret"));
+        Assert.Equal(GatewaySecret + "-payment", downstream.Header("X-Gateway-Secret"));
         Assert.Equal("payment-test-correlation", downstream.Header("X-Correlation-ID"));
         Assert.Null(downstream.Header("Authorization"));
         Assert.Null(downstream.Header("Cookie"));
@@ -185,6 +185,7 @@ public sealed class PaymentWebhookProxyTests
             new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
             {
                 InternalSharedSecret = GatewaySecret,
+                SubgraphSecrets = new SubgraphSecretsOptions { Payment = GatewaySecret + "-payment" },
                 RefreshTokenCookieName = "fb_refresh"
             }))
         {
@@ -202,7 +203,7 @@ public sealed class PaymentWebhookProxyTests
         Assert.Equal("123", downstream.Header(GatewayConstants.UserIdHeader));
         Assert.Equal("456", downstream.Header(GatewayConstants.SessionIdHeader));
         Assert.Null(downstream.Header("X-Username"));
-        Assert.Equal(GatewaySecret, downstream.Header(GatewayConstants.GatewaySecretHeader));
+        Assert.Equal(GatewaySecret + "-payment", downstream.Header(GatewayConstants.GatewaySecretHeader));
         Assert.Equal("correlation-1", downstream.Header(GatewayConstants.CorrelationIdHeader));
         Assert.Null(downstream.Header("Authorization"));
         Assert.Null(downstream.Header(GatewayConstants.RefreshTokenHeader));
@@ -290,6 +291,13 @@ public sealed class PaymentWebhookProxyTests
                     ["Jwt:Audience"] = "fakebook",
                     ["Jwt:SigningKey"] = SigningKey,
                     ["Gateway:InternalSharedSecret"] = GatewaySecret,
+                    ["Gateway:SubgraphSecrets:Authentication"] = GatewaySecret + "-auth",
+                    ["Gateway:SubgraphSecrets:SocialGraph"] = GatewaySecret + "-socialgraph",
+                    ["Gateway:SubgraphSecrets:Recommendation"] = GatewaySecret + "-recommendation",
+                    ["Gateway:SubgraphSecrets:Search"] = GatewaySecret + "-search",
+                    ["Gateway:SubgraphSecrets:Messaging"] = GatewaySecret + "-messaging",
+                    ["Gateway:SubgraphSecrets:Notification"] = GatewaySecret + "-notification",
+                    ["Gateway:SubgraphSecrets:Payment"] = GatewaySecret + "-payment",
                     ["Gateway:FusionArchivePath"] = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../fakebookGateway/gateway.far")),
                     ["Subgraphs:Authentication:Url"] = "http://localhost:1001/graphql",
                     ["Subgraphs:Payment:WebhookUrl"] = "http://payment.test/internal/webhooks/payos",

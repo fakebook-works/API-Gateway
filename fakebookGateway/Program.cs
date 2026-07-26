@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text;
 using fakebookGateway.Gateway;
+using HotChocolate.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -26,10 +28,18 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 // remote IP is used unchanged.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
+
+    var networks = builder.Configuration
+        .GetSection($"{GatewayOptions.SectionName}:TrustedProxyNetworks")
+        .Get<string[]>() ?? new GatewayOptions().TrustedProxyNetworks;
+    foreach (var network in networks)
+    {
+        options.KnownNetworks.Add(ParseTrustedProxyNetwork(network));
+    }
 });
 
 const string GraphQlRateLimitPolicy = "graphql";
@@ -45,15 +55,41 @@ builder.Services
             options.AuthenticationGraphQLEndpoint;
     })
     .Validate(
-        options => GatewaySubgraphs.All.All(subgraph =>
-            Encoding.UTF8.GetByteCount(options.ResolveSubgraphSecret(subgraph)) >= 32),
-        "Every resolved Gateway subgraph secret must contain at least 32 UTF-8 bytes.")
+        options => options.HasStrongDedicatedSubgraphSecrets(),
+        "Every Gateway subgraph requires its own configured secret of at least 32 UTF-8 bytes.")
     .Validate(
         options => options.SessionCacheSeconds > 0,
         "Gateway:SessionCacheSeconds must be greater than zero.")
     .Validate(
         options => options.AuthSessionValidationTimeoutSeconds > 0,
         "Gateway:AuthSessionValidationTimeoutSeconds must be greater than zero.")
+    .Validate(
+        options => options.MaxRequestBodyBytes is >= 1024 and <= 8 * 1024 * 1024,
+        "Gateway:MaxRequestBodyBytes must be between 1 KiB and 8 MiB.")
+    .Validate(
+        options => options.RateLimit.WindowSeconds > 0 &&
+                   options.RateLimit.AuthenticatedPermitLimit > 0 &&
+                   options.RateLimit.AnonymousPermitLimit > 0,
+        "Gateway rate-limit values must be greater than zero.")
+    .Validate(
+        options => options.GraphQLSecurity.MaxDepth is >= 3 and <= 64 &&
+                   options.GraphQLSecurity.MaxAllowedFields is >= 32 and <= 10_000 &&
+                   options.GraphQLSecurity.MaxAllowedNodes >= options.GraphQLSecurity.MaxAllowedFields &&
+                   options.GraphQLSecurity.MaxAllowedTokens >= options.GraphQLSecurity.MaxAllowedNodes &&
+                   options.GraphQLSecurity.MaxPlanningMilliseconds > 0 &&
+                   options.GraphQLSecurity.MaxExpandedPlannerNodes > 0 &&
+                   options.GraphQLSecurity.MaxPlannerQueueSize > 0 &&
+                   options.GraphQLSecurity.MaxGeneratedOptionsPerWorkItem > 0 &&
+                   options.GraphQLSecurity.ExecutionTimeoutSeconds > 0 &&
+                   options.GraphQLSecurity.MaxConcurrentExecutions > 0,
+        "Gateway GraphQL security limits are invalid.")
+    .Validate(
+        options => options.TrustedProxyNetworks.Length > 0 &&
+                   options.TrustedProxyNetworks.All(TryParseTrustedProxyNetwork),
+        "Gateway:TrustedProxyNetworks contains an invalid CIDR.")
+    .Validate(
+        options => !builder.Environment.IsProduction() || options.HasDedicatedDistinctSubgraphSecrets(),
+        "Production requires distinct subgraph secrets that do not equal Gateway:InternalSharedSecret.")
     .Validate(
         options => !string.IsNullOrWhiteSpace(options.RefreshTokenCookieName),
         "Gateway:RefreshTokenCookieName is required.")
@@ -173,7 +209,7 @@ builder.Services.AddRateLimiter(options =>
             });
         }
 
-        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var ip = NormalizeIpAddress(context.Connection.RemoteIpAddress);
         return RateLimitPartition.GetFixedWindowLimiter($"ip:{ip}", _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = settings.AnonymousPermitLimit,
@@ -246,7 +282,60 @@ builder.Services
 
 builder
     .AddGraphQLGateway()
-    .AddFileSystemConfiguration(fusionArchivePath);
+    .AddFileSystemConfiguration(fusionArchivePath)
+    .AddMaxExecutionDepthRule(
+        maxAllowedExecutionDepth: builder.Configuration.GetValue<int?>(
+            $"{GatewayOptions.SectionName}:GraphQLSecurity:MaxDepth") ??
+            new GatewayGraphQlSecurityOptions().MaxDepth,
+        skipIntrospectionFields: true,
+        allowRequestOverrides: false)
+    .AddMaxAllowedFieldCycleDepthRule(defaultCycleLimit: 3)
+    .SetMaxAllowedValidationErrors(5)
+    .SetIntrospectionAllowedDepth(
+        maxAllowedOfTypeDepth: 8,
+        maxAllowedListRecursiveDepth: 1)
+    .ModifyParserOptions(options =>
+    {
+        var configured = builder.Configuration
+            .GetSection($"{GatewayOptions.SectionName}:GraphQLSecurity")
+            .Get<GatewayGraphQlSecurityOptions>() ?? new GatewayGraphQlSecurityOptions();
+        options.MaxAllowedFields = configured.MaxAllowedFields;
+        options.MaxAllowedNodes = configured.MaxAllowedNodes;
+        options.MaxAllowedTokens = configured.MaxAllowedTokens;
+        options.MaxAllowedDirectives = 4;
+        options.MaxAllowedRecursionDepth = 100;
+    })
+    .ModifyPlannerOptions(options =>
+    {
+        var configured = builder.Configuration
+            .GetSection($"{GatewayOptions.SectionName}:GraphQLSecurity")
+            .Get<GatewayGraphQlSecurityOptions>() ?? new GatewayGraphQlSecurityOptions();
+        options.MaxPlanningTime = TimeSpan.FromMilliseconds(configured.MaxPlanningMilliseconds);
+        options.MaxExpandedNodes = configured.MaxExpandedPlannerNodes;
+        options.MaxQueueSize = configured.MaxPlannerQueueSize;
+        options.MaxGeneratedOptionsPerWorkItem = configured.MaxGeneratedOptionsPerWorkItem;
+    })
+    .ModifyRequestOptions(options =>
+    {
+        var configured = builder.Configuration
+            .GetSection($"{GatewayOptions.SectionName}:GraphQLSecurity")
+            .Get<GatewayGraphQlSecurityOptions>() ?? new GatewayGraphQlSecurityOptions();
+        options.ExecutionTimeout = TimeSpan.FromSeconds(configured.ExecutionTimeoutSeconds);
+        options.AllowOperationPlanRequests = false;
+    })
+    .ModifyServerOptions(options =>
+    {
+        var configured = builder.Configuration
+            .GetSection($"{GatewayOptions.SectionName}:GraphQLSecurity")
+            .Get<GatewayGraphQlSecurityOptions>() ?? new GatewayGraphQlSecurityOptions();
+        // The SPA sends one JSON operation per request and uploads media out-of-band.
+        // Explicitly reject request/variable batching and multipart GraphQL so one HTTP
+        // rate-limit permit cannot amplify into hundreds of executions.
+        options.Batching = AllowedBatching.None;
+        options.MaxBatchSize = 1;
+        options.EnableMultipartRequests = false;
+        options.MaxConcurrentExecutions = configured.MaxConcurrentExecutions;
+    });
 
 var app = builder.Build();
 
@@ -278,6 +367,47 @@ static string ResolveContentPath(IHostEnvironment environment, string path) =>
     System.IO.Path.IsPathRooted(path)
         ? path
         : System.IO.Path.Combine(environment.ContentRootPath, path);
+
+static string NormalizeIpAddress(IPAddress? address)
+{
+    if (address is null)
+    {
+        return "unknown";
+    }
+
+    return address.IsIPv4MappedToIPv6 ? address.MapToIPv4().ToString() : address.ToString();
+}
+
+static bool TryParseTrustedProxyNetwork(string? value)
+{
+    try
+    {
+        _ = ParseTrustedProxyNetwork(value ?? string.Empty);
+        return true;
+    }
+    catch (FormatException)
+    {
+        return false;
+    }
+}
+
+static Microsoft.AspNetCore.HttpOverrides.IPNetwork ParseTrustedProxyNetwork(string value)
+{
+    var parts = value.Split('/', 2, StringSplitOptions.TrimEntries);
+    if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var prefix) ||
+        !int.TryParse(parts[1], out var prefixLength))
+    {
+        throw new FormatException($"Invalid trusted proxy network '{value}'.");
+    }
+
+    var maxPrefixLength = prefix.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128;
+    if (prefixLength < 0 || prefixLength > maxPrefixLength)
+    {
+        throw new FormatException($"Invalid trusted proxy prefix length in '{value}'.");
+    }
+
+    return new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength);
+}
 
 static IHttpClientBuilder AddFusionClient(
     IServiceCollection services,

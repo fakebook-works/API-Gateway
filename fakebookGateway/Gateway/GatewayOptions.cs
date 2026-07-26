@@ -20,6 +20,8 @@ public sealed class GatewayOptions
     public long MaxRequestBodyBytes { get; set; } = 2 * 1024 * 1024;
 
     public GatewayRateLimitOptions RateLimit { get; set; } = new();
+    public GatewayGraphQlSecurityOptions GraphQLSecurity { get; set; } = new();
+    public string[] TrustedProxyNetworks { get; set; } = ["127.0.0.0/8", "::1/128"];
     public string RefreshTokenCookieName { get; set; } = "fb_refresh";
     public string RefreshTokenCookiePath { get; set; } = "/";
     public SameSiteMode RefreshTokenCookieSameSite { get; set; } = SameSiteMode.Lax;
@@ -44,10 +46,40 @@ public sealed class GatewayOptions
             _ => null
         };
 
-        return string.IsNullOrWhiteSpace(configured)
-            ? InternalSharedSecret
-            : configured;
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            throw new InvalidOperationException(
+                $"No dedicated Gateway secret is configured for subgraph '{subgraphName}'.");
+        }
+
+        return configured;
     }
+
+    public bool HasDedicatedDistinctSubgraphSecrets()
+    {
+        var configured = ConfiguredSubgraphSecrets();
+
+        return HasStrongDedicatedSubgraphSecrets() &&
+               configured.Distinct(StringComparer.Ordinal).Count() == configured.Length &&
+               configured.All(secret => !string.Equals(secret, InternalSharedSecret, StringComparison.Ordinal));
+    }
+
+    public bool HasStrongDedicatedSubgraphSecrets() =>
+        ConfiguredSubgraphSecrets().All(secret =>
+            !string.IsNullOrWhiteSpace(secret) &&
+            System.Text.Encoding.UTF8.GetByteCount(secret) >= 32);
+
+    private string?[] ConfiguredSubgraphSecrets() =>
+        new[]
+        {
+            SubgraphSecrets.Authentication,
+            SubgraphSecrets.SocialGraph,
+            SubgraphSecrets.Recommendation,
+            SubgraphSecrets.Search,
+            SubgraphSecrets.Messaging,
+            SubgraphSecrets.Notification,
+            SubgraphSecrets.Payment
+        };
 }
 
 public sealed class GatewayRateLimitOptions
@@ -63,7 +95,7 @@ public sealed class GatewayRateLimitOptions
     /// Deliberately generous so normal SPA browsing never trips it; it caps a single
     /// compromised/abusive account rather than legitimate use.
     /// </summary>
-    public int AuthenticatedPermitLimit { get; set; } = 1200;
+    public int AuthenticatedPermitLimit { get; set; } = 600;
 
     /// <summary>
     /// Permits per window for anonymous callers (partitioned by real client IP, resolved
@@ -71,6 +103,22 @@ public sealed class GatewayRateLimitOptions
     /// (login/register/public queries) without starving legitimate sign-in bursts.
     /// </summary>
     public int AnonymousPermitLimit { get; set; } = 240;
+}
+
+public sealed class GatewayGraphQlSecurityOptions
+{
+    /// <summary>Maximum validated selection depth. Normal Fakebook operations stay below 10.</summary>
+    public int MaxDepth { get; set; } = 15;
+
+    public int MaxAllowedFields { get; set; } = 512;
+    public int MaxAllowedNodes { get; set; } = 4_096;
+    public int MaxAllowedTokens { get; set; } = 8_192;
+    public int MaxPlanningMilliseconds { get; set; } = 3_000;
+    public int MaxExpandedPlannerNodes { get; set; } = 5_000;
+    public int MaxPlannerQueueSize { get; set; } = 2_500;
+    public int MaxGeneratedOptionsPerWorkItem { get; set; } = 128;
+    public int ExecutionTimeoutSeconds { get; set; } = 20;
+    public int MaxConcurrentExecutions { get; set; } = 64;
 }
 
 public sealed class SubgraphSecretsOptions

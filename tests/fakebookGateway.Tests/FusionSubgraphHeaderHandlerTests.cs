@@ -8,6 +8,20 @@ using Xunit;
 public sealed class FusionSubgraphHeaderHandlerTests
 {
     [Fact]
+    public void MissingDedicatedSecret_DoesNotFallBackToTheSharedGatewaySecret()
+    {
+        var options = new GatewayOptions
+        {
+            InternalSharedSecret = "legacy-shared-secret-at-least-32-bytes"
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            options.ResolveSubgraphSecret(GatewaySubgraphs.SocialGraph));
+
+        Assert.Contains("dedicated", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Handler_ReplacesSpoofedTrustedHeadersWithGatewayContext()
     {
         var context = new DefaultHttpContext();
@@ -19,8 +33,13 @@ public sealed class FusionSubgraphHeaderHandlerTests
             new HttpContextAccessor { HttpContext = context },
             new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
             {
-                InternalSharedSecret = "trusted-gateway-secret-at-least-32-bytes"
-            }))
+                InternalSharedSecret = "legacy-gateway-secret-at-least-32-bytes",
+                SubgraphSecrets = new SubgraphSecretsOptions
+                {
+                    SocialGraph = "trusted-gateway-secret-at-least-32-bytes"
+                }
+            }),
+            GatewaySubgraphs.SocialGraph)
         {
             InnerHandler = capture
         };
