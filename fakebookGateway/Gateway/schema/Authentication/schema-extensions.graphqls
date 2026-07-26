@@ -7,3 +7,17 @@ extend type Mutation {
   setPaymentValidDate(input: SetPaymentValidDateInput!): PaymentPremiumState! @internal
   register(input: RegisterInput!): RegisterPayload! @internal
 }
+
+# The raw refresh token must never be selectable by a browser client. Response-body
+# scrubbing alone was bypassable through field aliases, a reduced selection set, or an
+# Accept: text/event-stream request that skips buffering entirely; removing the fields
+# from the public schema makes all three impossible. The refresh cookie itself is still
+# applied from the internal X-Fakebook-Refresh-Cookie-Instruction response header
+# (FusionSubgraphHeaderHandler), so the login flow is unaffected.
+extend type LoginPayload {
+  refreshToken: String! @internal
+}
+
+extend type GatewayCookieInstruction {
+  value: String @internal
+}

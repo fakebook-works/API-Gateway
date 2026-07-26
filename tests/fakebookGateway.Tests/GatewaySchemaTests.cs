@@ -177,6 +177,21 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("notificationCreated", subscriptionFields);
 
         var types = data.GetProperty("types").EnumerateArray().ToArray();
+
+        // The raw refresh token must not be reachable from the public schema. Response-body
+        // scrubbing was bypassable via field aliases, a reduced selection set, or an
+        // Accept: text/event-stream request, so the fields themselves are marked @internal.
+        // The cookie is still applied from the internal instruction response header.
+        var loginPayload = Assert.Single(types, type => TypeName(type) == "LoginPayload");
+        Assert.DoesNotContain("refreshToken", FieldNames(loginPayload));
+        Assert.Contains("refreshTokenExpiresAt", FieldNames(loginPayload));
+        Assert.Contains("accessToken", FieldNames(loginPayload));
+
+        var cookieInstruction = Assert.Single(
+            types,
+            type => TypeName(type) == "GatewayCookieInstruction");
+        Assert.DoesNotContain("value", FieldNames(cookieInstruction));
+
         var homePost = Assert.Single(types, type => TypeName(type) == "HomePost");
         Assert.Equal(
             new[] { "FeedPostDetail", "GroupPostDetail", "ReelDetail" },
