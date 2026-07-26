@@ -23,7 +23,9 @@ public sealed class GatewayOptions
     public GatewayGraphQlSecurityOptions GraphQLSecurity { get; set; } = new();
     public string[] TrustedProxyNetworks { get; set; } = ["127.0.0.0/8", "::1/128"];
     public string RefreshTokenCookieName { get; set; } = "fb_refresh";
-    public string RefreshTokenCookiePath { get; set; } = "/";
+    // Matches Auth:RefreshTokenCookiePath. The refresh cookie is only ever read for /graphql
+    // requests, so a wider scope only exposes it to other services on the same edge origin.
+    public string RefreshTokenCookiePath { get; set; } = "/graphql";
     public SameSiteMode RefreshTokenCookieSameSite { get; set; } = SameSiteMode.Lax;
     public string[] AllowedOrigins { get; set; } =
     [
