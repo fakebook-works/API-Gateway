@@ -10,12 +10,22 @@ type Query {
   searchUsers(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
     @cost(weight: "10")
   "Searches only users who already have a direct Messenger conversation with the authenticated viewer."
-  searchDirectContacts(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
-    @cost(weight: "10")
+  searchDirectContacts(
+    keyword: String!
+    pageNumber: Int! = 1
+    pageSize: Int! = 20
+  ): UserSearchPage! @cost(weight: "10")
   "Searches only accepted friends of the authenticated viewer."
   searchFriends(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): UserSearchPage!
     @cost(weight: "10")
-  "Tìm Group theo từ khóa; chỉ trả referenceId để service sở hữu hydrate dữ liệu Group."
+  "Searches the authenticated viewer's friends, followed users or followers within the relationship IDs supplied by SocialGraph REST."
+  searchProfileConnections(
+    keyword: String!
+    connectionType: ProfileConnectionType!
+    pageNumber: Int! = 1
+    pageSize: Int! = 20
+  ): UserSearchPage! @cost(weight: "10")
+  "Searches groups by keyword and returns owning-service references."
   searchGroups(keyword: String!, pageNumber: Int! = 1, pageSize: Int! = 20): GroupSearchPage!
     @cost(weight: "10")
   "Tìm Feed Post theo từ khóa; chỉ trả referenceId, không quyết định privacy/content."
@@ -91,7 +101,13 @@ type UserSearchResult {
   referenceId: ID!
 }
 
-union FastSearchResult = UserSearchResult | GroupSearchResult
+union FastSearchResult = GroupSearchResult | UserSearchResult
+
+enum ProfileConnectionType {
+  FRIENDS
+  FOLLOWING
+  FOLLOWERS
+}
 
 "The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
 directive @cost(

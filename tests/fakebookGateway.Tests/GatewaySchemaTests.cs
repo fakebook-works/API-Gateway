@@ -57,6 +57,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("profiles", queryFields);
         Assert.Contains("friendSuggestions", queryFields);
         Assert.Contains("friendRelationProfiles", queryFields);
+        Assert.Contains("friendProfilesWithMutualCounts", queryFields);
         Assert.Contains("groups", queryFields);
         Assert.Contains("profile", queryFields);
         Assert.Contains("group", queryFields);
@@ -93,6 +94,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("storyViewers", queryFields);
         Assert.Contains("taggedUsers", queryFields);
         Assert.Contains("mentionedUsers", queryFields);
+        Assert.Contains("profileConnections", queryFields);
         Assert.Contains("groupJoinRequests", queryFields);
         Assert.Contains("recommendFeed", queryFields);
         Assert.Contains("recommendReels", queryFields);
@@ -106,6 +108,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("searchUsers", queryFields);
         Assert.Contains("searchDirectContacts", queryFields);
         Assert.Contains("searchFriends", queryFields);
+        Assert.Contains("searchProfileConnections", queryFields);
         Assert.Contains("searchGroups", queryFields);
         Assert.Contains("searchFeedPosts", queryFields);
         Assert.Contains("searchGroupPosts", queryFields);
@@ -246,6 +249,13 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Equal(
             new[] { "mutualFriendCount", "mutualFriends", "profile" },
             FieldNames(friendSuggestion).OrderBy(name => name));
+
+        var friendProfileWithMutualCount = Assert.Single(
+            types,
+            type => TypeName(type) == "FriendProfileWithMutualCountResult");
+        Assert.Equal(
+            new[] { "mutualFriendCount", "profile" },
+            FieldNames(friendProfileWithMutualCount).OrderBy(name => name));
 
         var recommendationItem = Assert.Single(
             types,
