@@ -8,10 +8,15 @@ namespace fakebookGateway.Gateway;
 
 public interface IAuthSessionValidator
 {
+    /// <param name="forceRefresh">
+    /// Skips the local result cache. Long-lived subscriptions re-check their session periodically
+    /// and must observe a revocation rather than the value cached when the stream opened.
+    /// </param>
     Task<GatewaySessionValidationResult> ValidateAsync(
         long userId,
         long sessionId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool forceRefresh = false);
 }
 
 public sealed class AuthSessionValidator(
@@ -39,18 +44,24 @@ public sealed class AuthSessionValidator(
     public async Task<GatewaySessionValidationResult> ValidateAsync(
         long userId,
         long sessionId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forceRefresh = false)
     {
         var cacheKey = $"auth-session:{userId}:{sessionId}";
-        if (cache.TryGetValue(cacheKey, out GatewaySessionValidationResult? cached) && cached is not null)
+        if (!forceRefresh &&
+            cache.TryGetValue(cacheKey, out GatewaySessionValidationResult? cached) &&
+            cached is not null)
         {
             return cached;
         }
 
+        // Forced refreshes share their own in-flight slot, so several open subscriptions belonging
+        // to one session collapse into a single upstream call instead of one call per stream.
+        var inflightKey = forceRefresh ? $"force:{cacheKey}" : cacheKey;
         var pending = _inflight.GetOrAdd(
-            cacheKey,
+            inflightKey,
             _ => new Lazy<Task<GatewaySessionValidationResult>>(
-                () => ValidateCoreAsync(userId, sessionId),
+                () => ValidateCoreAsync(userId, sessionId, forceRefresh),
                 LazyThreadSafetyMode.ExecutionAndPublication));
         var task = pending.Value;
         try
@@ -69,10 +80,15 @@ public sealed class AuthSessionValidator(
         }
     }
 
-    private async Task<GatewaySessionValidationResult> ValidateCoreAsync(long userId, long sessionId)
+    private async Task<GatewaySessionValidationResult> ValidateCoreAsync(
+        long userId,
+        long sessionId,
+        bool forceRefresh = false)
     {
         var cacheKey = $"auth-session:{userId}:{sessionId}";
-        if (cache.TryGetValue(cacheKey, out GatewaySessionValidationResult? cached) && cached is not null)
+        if (!forceRefresh &&
+            cache.TryGetValue(cacheKey, out GatewaySessionValidationResult? cached) &&
+            cached is not null)
         {
             return cached;
         }

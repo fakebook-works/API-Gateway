@@ -10,6 +10,14 @@ public sealed class GatewayOptions
     public SubgraphSecretsOptions SubgraphSecrets { get; set; } = new();
     public int SessionCacheSeconds { get; set; } = 30;
     public int InvalidSessionCacheSeconds { get; set; } = 2;
+
+    /// <summary>
+    /// How often an open GraphQL subscription re-checks that its session is still valid. Ordinary
+    /// requests are re-authorised on every call, but a subscription is authorised once and then
+    /// streams for as long as the edge allows (an hour), so without this a revoked session keeps
+    /// receiving private messages and notifications until the connection happens to drop.
+    /// </summary>
+    public int SubscriptionSessionRecheckSeconds { get; set; } = 30;
     public int AuthSessionValidationTimeoutSeconds { get; set; } = 5;
 
     /// <summary>

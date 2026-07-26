@@ -18,7 +18,7 @@ public sealed class GraphQlCookieResponseMiddleware(
             return;
         }
 
-        if (AcceptsEventStream(context.Request))
+        if (GatewayRequests.AcceptsEventStream(context.Request))
         {
             context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
             context.Response.Headers.CacheControl = "no-cache, no-store";
@@ -85,34 +85,6 @@ public sealed class GraphQlCookieResponseMiddleware(
             !string.IsNullOrWhiteSpace(contentType) &&
             (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
              contentType.Contains("+json", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool AcceptsEventStream(HttpRequest request)
-    {
-        foreach (var value in request.Headers.Accept)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                continue;
-            }
-
-            foreach (var candidate in value.Split(','))
-            {
-                var mediaType = candidate.AsSpan().Trim();
-                var parameterIndex = mediaType.IndexOf(';');
-                if (parameterIndex >= 0)
-                {
-                    mediaType = mediaType[..parameterIndex].TrimEnd();
-                }
-
-                if (mediaType.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private static bool ProcessNode(JsonNode node, HttpContext context)

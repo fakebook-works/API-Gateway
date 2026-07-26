@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 
 namespace fakebookGateway.Gateway;
 
@@ -61,7 +62,8 @@ public sealed class GatewaySessionValidationMiddleware(
 {
     public async Task InvokeAsync(
         HttpContext context,
-        IAuthSessionValidator sessionValidator)
+        IAuthSessionValidator sessionValidator,
+        IOptionsMonitor<GatewayOptions> options)
     {
         if (!IsGraphQlRequest(context))
         {
@@ -113,7 +115,79 @@ public sealed class GatewaySessionValidationMiddleware(
         context.Items[GatewayConstants.UserIdItem] = userId.Value.ToString();
         context.Items[GatewayConstants.SessionIdItem] = sessionId.Value.ToString();
 
-        await next(context);
+        if (!GatewayRequests.AcceptsEventStream(context.Request))
+        {
+            await next(context);
+            return;
+        }
+
+        // A subscription is authorised once and then streams for up to an hour. Signing out of
+        // every device therefore used to stop ordinary requests within the cache TTL while open
+        // streams kept delivering the victim's messages and notifications until the connection
+        // happened to drop. Re-check periodically and cancel the request when the session goes.
+        var recheckSeconds = Math.Clamp(options.CurrentValue.SubscriptionSessionRecheckSeconds, 1, 300);
+        var originalAborted = context.RequestAborted;
+        using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(originalAborted);
+        context.RequestAborted = watchdog.Token;
+        var monitor = MonitorSubscriptionSessionAsync(
+            sessionValidator,
+            userId.Value,
+            sessionId.Value,
+            TimeSpan.FromSeconds(recheckSeconds),
+            watchdog,
+            logger);
+        try
+        {
+            await next(context);
+        }
+        finally
+        {
+            await watchdog.CancelAsync();
+            context.RequestAborted = originalAborted;
+            await monitor;
+        }
+    }
+
+    private static async Task MonitorSubscriptionSessionAsync(
+        IAuthSessionValidator sessionValidator,
+        long userId,
+        long sessionId,
+        TimeSpan interval,
+        CancellationTokenSource watchdog,
+        ILogger logger)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(interval);
+            while (await timer.WaitForNextTickAsync(watchdog.Token))
+            {
+                var validation = await sessionValidator.ValidateAsync(
+                    userId,
+                    sessionId,
+                    watchdog.Token,
+                    forceRefresh: true);
+                if (validation.IsValid)
+                {
+                    continue;
+                }
+
+                logger.LogInformation(
+                    "Closing realtime stream for revoked session {SessionId} of user {UserId}.",
+                    sessionId,
+                    userId);
+                await watchdog.CancelAsync();
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The request finished or was cancelled; nothing to do.
+        }
+        catch (Exception exception)
+        {
+            // Never take the stream down because the watchdog itself failed.
+            logger.LogWarning(exception, "Realtime session watchdog stopped unexpectedly.");
+        }
     }
 
     private static bool IsGraphQlRequest(HttpContext context) =>
