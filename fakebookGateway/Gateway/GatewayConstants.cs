@@ -19,6 +19,8 @@ public static class GatewayConstants
     public const string InternalNotificationServiceSecretHeader = "X-Internal-NotificationService-Secret";
     public const string InternalMessengerServiceSecretHeader = "X-Internal-MessengerService-Secret";
     public const string PaymentSecretHeader = "X-Payment-Secret";
+    public const string ForwardedForHeader = "X-Forwarded-For";
+    public const string UserAgentHeader = "User-Agent";
 
     public const string UserIdClaim = "user_id";
     public const string SessionIdClaim = "sid";

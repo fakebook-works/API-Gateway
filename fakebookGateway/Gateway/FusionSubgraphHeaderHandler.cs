@@ -149,6 +149,8 @@ internal static class FusionTrustedHeaders
         request.Headers.Remove(GatewayConstants.InternalNotificationServiceSecretHeader);
         request.Headers.Remove(GatewayConstants.InternalMessengerServiceSecretHeader);
         request.Headers.Remove(GatewayConstants.PaymentSecretHeader);
+        request.Headers.Remove(GatewayConstants.ForwardedForHeader);
+        request.Headers.Remove(GatewayConstants.UserAgentHeader);
         foreach (var header in request.Headers
                      .Select(item => item.Key)
                      .Where(name => name.StartsWith("X-Internal-", StringComparison.OrdinalIgnoreCase))
@@ -181,6 +183,20 @@ internal static class FusionTrustedHeaders
             request,
             GatewayConstants.GatewaySecretHeader,
             options.ResolveSubgraphSecret(subgraphName));
+
+        // Subgraphs otherwise only ever see the gateway container's address, which made every
+        // per-IP counter in Authentication collapse onto the identifier alone (so five failed
+        // logins locked the victim out) and left session records with no usable device detail.
+        // A single authoritative entry is emitted from the address the gateway itself resolved,
+        // rather than passing the client-supplied chain through, so it cannot be spoofed.
+        Copy(
+            request,
+            GatewayConstants.ForwardedForHeader,
+            context.Connection.RemoteIpAddress?.ToString());
+        Copy(
+            request,
+            GatewayConstants.UserAgentHeader,
+            context.Request.Headers.UserAgent.ToString());
 
         if (includeRefreshToken &&
             !string.IsNullOrWhiteSpace(options.RefreshTokenCookieName) &&

@@ -108,14 +108,57 @@ public sealed class FusionSubgraphHeaderHandlerTests
         Assert.False(capture.Headers.ContainsKey(GatewayConstants.PaymentSecretHeader));
     }
 
+    [Fact]
+    public async Task Handler_ForwardsTheResolvedClientAddressAndUserAgent()
+    {
+        // Subgraphs used to see only the gateway container address, which collapsed
+        // Authentication's per-IP login throttle onto the identifier alone and left session
+        // records with no device detail.
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("100.101.173.71");
+        context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
+        var capture = new CaptureHandler();
+        var handler = new FusionSubgraphHeaderHandler(
+            new HttpContextAccessor { HttpContext = context },
+            new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
+            {
+                InternalSharedSecret = "fallback-secret-at-least-32-bytes",
+                SubgraphSecrets = new SubgraphSecretsOptions
+                {
+                    Authentication = "auth-secret-at-least-32-bytes-long-x"
+                }
+            }),
+            GatewaySubgraphs.Authentication)
+        {
+            InnerHandler = capture
+        };
+        using var client = new HttpClient(handler);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "http://auth/graphql");
+        // A client-supplied chain must never be passed through.
+        request.Headers.TryAddWithoutValidation(GatewayConstants.ForwardedForHeader, "1.2.3.4, 5.6.7.8");
+        request.Headers.TryAddWithoutValidation(GatewayConstants.UserAgentHeader, "spoofed-agent");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal("100.101.173.71", capture.Headers[GatewayConstants.ForwardedForHeader]);
+        Assert.Equal("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", capture.UserAgent);
+    }
+
     private sealed class CaptureHandler : HttpMessageHandler
     {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// User-Agent is a structured header, so enumerating it yields one entry per product
+        /// token. This keeps the value as it is actually serialised onto the wire.
+        /// </summary>
+        public string? UserAgent { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            UserAgent = request.Headers.UserAgent.ToString();
             foreach (var header in request.Headers)
             {
                 Headers[header.Key] = string.Join(",", header.Value);
