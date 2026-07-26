@@ -2,6 +2,7 @@ using System.Text;
 using fakebookGateway.Gateway;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -9,6 +10,29 @@ using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Cap the accepted request body for the public GraphQL endpoint (default 2 MiB). Legitimate
+// GraphQL JSON payloads are tiny; media never transits the gateway. This blunts oversized-query
+// memory/CPU amplification (Kestrel's default is 30 MB). Ignored by the in-memory test server.
+var maxRequestBodyBytes =
+    builder.Configuration.GetValue<long?>($"{GatewayOptions.SectionName}:MaxRequestBodyBytes")
+    ?? new GatewayOptions().MaxRequestBodyBytes;
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBodyBytes);
+
+// The gateway sits behind the tailnet edge (nginx), which appends the real client IP to
+// X-Forwarded-For. Honour it so rate-limit partitioning keys on the actual caller, not the
+// single proxy IP. Only the edge can reach the gateway (ports bind loopback / docker-internal),
+// so trusting the immediate proxy is safe. In host-mode dev there is no XFF header, so the real
+// remote IP is used unchanged.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.ForwardLimit = 1;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+const string GraphQlRateLimitPolicy = "graphql";
 
 builder.Services
     .AddOptions<GatewayOptions>()
@@ -124,6 +148,41 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true
             });
     });
+
+    // Throttle the public GraphQL endpoint. Authenticated callers are partitioned by user id
+    // (generous per-account budget); anonymous traffic (login/register/public queries) is
+    // partitioned by real client IP so one abusive source cannot exhaust downstream capacity.
+    options.AddPolicy(GraphQlRateLimitPolicy, context =>
+    {
+        var settings = context.RequestServices.GetRequiredService<IOptions<GatewayOptions>>().Value.RateLimit;
+        if (!settings.Enabled)
+        {
+            return RateLimitPartition.GetNoLimiter("graphql-disabled");
+        }
+
+        var window = TimeSpan.FromSeconds(settings.WindowSeconds);
+        var userId = context.User.GetLongClaim(GatewayConstants.UserIdClaim);
+        if (userId is { } id)
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"u:{id}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = settings.AuthenticatedPermitLimit,
+                Window = window,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+        }
+
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"ip:{ip}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = settings.AnonymousPermitLimit,
+            Window = window,
+            QueueLimit = 0,
+            AutoReplenishment = true
+        });
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -191,15 +250,17 @@ builder
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseMiddleware<GatewayEdgeMiddleware>();
 app.UseCors("Frontend");
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// After authentication so the GraphQL limiter can partition by the caller's user_id claim.
+app.UseRateLimiter();
 app.UseMiddleware<GatewaySessionValidationMiddleware>();
 app.UseMiddleware<GraphQlCookieResponseMiddleware>();
 
-app.MapGraphQL("/graphql");
+app.MapGraphQL("/graphql").RequireRateLimiting(GraphQlRateLimitPolicy);
 app.MapPaymentWebhookProxy();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

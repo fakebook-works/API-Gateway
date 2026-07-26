@@ -133,7 +133,8 @@ Authentication is email-only, has no phone identifier, and persists no SocialGra
 The following completed SocialGraph operations are public through Gateway:
 
 ```text
-Query:    visitedGroups, postDetail, postDetails, homeStories, myStories
+Query:    visitedGroups, postDetail, postDetails, homeStories, myStories,
+          friends, profileConnections, friendProfilesWithMutualCounts
 Mutation: createUser, recordGroupVisit, createFeedPost,
           createNormalStory, createShareStory, deleteStory
 ```

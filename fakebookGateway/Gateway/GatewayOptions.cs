@@ -11,6 +11,15 @@ public sealed class GatewayOptions
     public int SessionCacheSeconds { get; set; } = 30;
     public int InvalidSessionCacheSeconds { get; set; } = 2;
     public int AuthSessionValidationTimeoutSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum accepted request body size (bytes) for the public GraphQL endpoint.
+    /// Guards against oversized-query memory/CPU amplification. Default 2 MiB — far
+    /// above any legitimate GraphQL JSON payload, well below the Kestrel 30 MB default.
+    /// </summary>
+    public long MaxRequestBodyBytes { get; set; } = 2 * 1024 * 1024;
+
+    public GatewayRateLimitOptions RateLimit { get; set; } = new();
     public string RefreshTokenCookieName { get; set; } = "fb_refresh";
     public string RefreshTokenCookiePath { get; set; } = "/";
     public SameSiteMode RefreshTokenCookieSameSite { get; set; } = SameSiteMode.Lax;
@@ -39,6 +48,29 @@ public sealed class GatewayOptions
             ? InternalSharedSecret
             : configured;
     }
+}
+
+public sealed class GatewayRateLimitOptions
+{
+    /// <summary>Master switch. When false, no limiter is attached to /graphql.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Sliding-window length in seconds for both partitions.</summary>
+    public int WindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Permits per window for an authenticated caller (partitioned by user id).
+    /// Deliberately generous so normal SPA browsing never trips it; it caps a single
+    /// compromised/abusive account rather than legitimate use.
+    /// </summary>
+    public int AuthenticatedPermitLimit { get; set; } = 1200;
+
+    /// <summary>
+    /// Permits per window for anonymous callers (partitioned by real client IP, resolved
+    /// via X-Forwarded-For from the trusted edge). Caps unauthenticated flood traffic
+    /// (login/register/public queries) without starving legitimate sign-in bursts.
+    /// </summary>
+    public int AnonymousPermitLimit { get; set; } = 240;
 }
 
 public sealed class SubgraphSecretsOptions

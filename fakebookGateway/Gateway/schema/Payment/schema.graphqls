@@ -11,6 +11,8 @@ type Query {
 type Mutation {
   createPremiumCheckout(input: CreatePremiumCheckoutInput!): PremiumCheckoutPayload!
     @cost(weight: "10")
+  reconcilePremiumCheckout(orderCode: ID!): PremiumOrderView!
+    @cost(weight: "10")
 }
 
 type PremiumCheckoutPayload {

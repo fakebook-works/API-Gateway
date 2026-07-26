@@ -11,8 +11,8 @@ The Gateway is the public GraphQL entry point for the frontend. It composes mult
 - Main public endpoint: `/graphql`.
 - Root route: `/` redirects to `/graphql`.
 - Composition artifact: `fakebookGateway/gateway.far`.
-- Current composed subgraphs: `Authentication`, `SocialGraph`, `Recommendation`, and `Payment`.
-- Planned subgraphs: `Search`, `Messaging`, `Notification`, `Media`.
+- Current composed subgraphs (7): `Authentication`, `SocialGraph`, `Recommendation`, `Search`, `Notification`, `Messenger`, and `Payment`.
+- `Media` remains a direct upload service rather than a composed subgraph.
 - Auth model: Gateway validates JWT locally and validates active session status with the Authentication subgraph.
 - Refresh token model: Gateway owns browser cookies. Auth returns cookie instructions; Gateway applies them and scrubs raw refresh token values from public GraphQL responses.
 
