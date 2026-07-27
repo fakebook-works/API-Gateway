@@ -1,5 +1,8 @@
 namespace fakebookGateway.Gateway;
 
+using System.Security.Cryptography;
+using Microsoft.IdentityModel.Tokens;
+
 public sealed class GatewayOptions
 {
     public const string SectionName = "Gateway";
@@ -170,5 +173,47 @@ public sealed class JwtOptions
 
     public string Issuer { get; set; } = "fakebook-auth";
     public string Audience { get; set; } = "fakebook";
-    public string SigningKey { get; set; } = string.Empty;
+    /// <summary>SubjectPublicKeyInfo RSA public key encoded as base64 (DER).</summary>
+    public string PublicKeyBase64 { get; set; } = string.Empty;
+    public string KeyId { get; set; } = "fakebook-rs256-2026-01";
+    /// <summary>Migration-only verifier for pre-rollout HS256 access tokens.</summary>
+    public string LegacySigningKey { get; set; } = string.Empty;
+
+    public RsaSecurityKey CreatePublicSecurityKey()
+    {
+        var rsa = RSA.Create();
+        try
+        {
+            rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(PublicKeyBase64), out var bytesRead);
+            if (bytesRead == 0 || rsa.KeySize < 2048)
+            {
+                throw new CryptographicException("RSA public key is too small.");
+            }
+
+            return new RsaSecurityKey(rsa) { KeyId = KeyId };
+        }
+        catch
+        {
+            rsa.Dispose();
+            throw;
+        }
+    }
+
+    public bool HasValidPublicKey()
+    {
+        try
+        {
+            var key = CreatePublicSecurityKey();
+            key.Rsa?.Dispose();
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
 }

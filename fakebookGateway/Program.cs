@@ -12,6 +12,7 @@ using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddFakebookServiceDefaults(builder.Configuration, "fakebook-gateway");
 
 // Cap the accepted request body for the public GraphQL endpoint (default 2 MiB). Legitimate
 // GraphQL JSON payloads are tiny; media never transits the gateway. This blunts oversized-query
@@ -30,7 +31,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 
     var networks = builder.Configuration
@@ -38,7 +39,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
         .Get<string[]>() ?? new GatewayOptions().TrustedProxyNetworks;
     foreach (var network in networks)
     {
-        options.KnownNetworks.Add(ParseTrustedProxyNetwork(network));
+        options.KnownIPNetworks.Add(ParseTrustedProxyNetwork(network));
     }
 });
 
@@ -108,10 +109,12 @@ builder.Services
 builder.Services
     .AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
-    .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Jwt:SigningKey is required.")
-    .Validate(
-        options => Encoding.UTF8.GetByteCount(options.SigningKey) >= 32,
-        "Jwt:SigningKey must be at least 32 bytes.")
+    .Validate(options => options.HasValidPublicKey(),
+        "Jwt:PublicKeyBase64 must be a valid SubjectPublicKeyInfo RSA key of at least 2048 bits.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.KeyId) && options.KeyId.Length <= 64,
+        "Jwt:KeyId is required and must be at most 64 characters.")
+    .Validate(options => string.IsNullOrEmpty(options.LegacySigningKey) || Encoding.UTF8.GetByteCount(options.LegacySigningKey) >= 32,
+        "Jwt:LegacySigningKey must be empty or at least 32 bytes.")
     .ValidateOnStart();
 
 builder.Services
@@ -247,11 +250,18 @@ builder.Services
     .Configure<IOptions<JwtOptions>>((options, configuredJwtOptions) =>
     {
         var jwtOptions = configuredJwtOptions.Value;
+        var signingKeys = new List<SecurityKey> { jwtOptions.CreatePublicSecurityKey() };
+        if (!string.IsNullOrEmpty(jwtOptions.LegacySigningKey))
+        {
+            signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.LegacySigningKey)));
+        }
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            IssuerSigningKeys = signingKeys,
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256, SecurityAlgorithms.HmacSha256],
+            RequireSignedTokens = true,
             ValidateIssuer = true,
             ValidIssuer = jwtOptions.Issuer,
             ValidateAudience = true,
@@ -391,7 +401,7 @@ static bool TryParseTrustedProxyNetwork(string? value)
     }
 }
 
-static Microsoft.AspNetCore.HttpOverrides.IPNetwork ParseTrustedProxyNetwork(string value)
+static System.Net.IPNetwork ParseTrustedProxyNetwork(string value)
 {
     var parts = value.Split('/', 2, StringSplitOptions.TrimEntries);
     if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var prefix) ||
@@ -406,7 +416,7 @@ static Microsoft.AspNetCore.HttpOverrides.IPNetwork ParseTrustedProxyNetwork(str
         throw new FormatException($"Invalid trusted proxy prefix length in '{value}'.");
     }
 
-    return new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength);
+    return new System.Net.IPNetwork(prefix, prefixLength);
 }
 
 static IHttpClientBuilder AddFusionClient(

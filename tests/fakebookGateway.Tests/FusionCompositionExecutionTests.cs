@@ -332,10 +332,15 @@ public sealed class FusionCompositionExecutionTests :
 
     private static string CreateAccessToken()
     {
+        using var rsa = TestJwtKeys.CreatePrivateKey();
+        var signingKey = new RsaSecurityKey(rsa)
+        {
+            KeyId = TestJwtKeys.KeyId,
+            CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+        };
         var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes("gateway-test-jwt-key-at-least-32-bytes")),
-            SecurityAlgorithms.HmacSha256);
+            signingKey,
+            SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: "fakebook-auth",
             audience: "fakebook",

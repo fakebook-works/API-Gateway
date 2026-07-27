@@ -26,7 +26,7 @@ Capability hiện tại:
 - Expose SocialGraph `createUser` làm mutation đăng ký public chuẩn.
 - Expose các Home API đã authorize của SocialGraph và hydrate `RecommendationItem.post` qua internal batch lookup.
 - Expose Payment Premium operations và proxy PayOS webhook qua REST endpoint có body limit và rate limit.
-- Validate HS256 JWT access token bằng issuer, audience và signing key trong config.
+- Validate JWT RS256 bằng issuer, audience, public key, thuật toán và `kid` trong config.
 - Validate session state của access token với Auth qua internal query `validateGatewaySession`.
 - Cache kết quả Auth session validation trong một TTL ngắn.
 - Strip trusted internal headers do browser gửi lên trước khi forward request xuống subgraph.
@@ -91,10 +91,11 @@ JWT config bắt buộc:
 ```text
 Jwt__Issuer
 Jwt__Audience
-Jwt__SigningKey
+Jwt__PublicKeyBase64
+Jwt__KeyId
 ```
 
-`Jwt:SigningKey` phải dài tối thiểu 32 bytes và phải trùng với signing key của Authentication subgraph, vì Auth issue access token và Gateway validate access token đó.
+`Jwt:PublicKeyBase64` là public key RSA dạng SPKI tương ứng với private key của Auth; Gateway không nhận private key.
 
 Gateway config bắt buộc:
 
@@ -110,7 +111,9 @@ Environment variables hữu ích:
 ASPNETCORE_URLS
 Jwt__Issuer
 Jwt__Audience
-Jwt__SigningKey
+Jwt__PublicKeyBase64
+Jwt__KeyId
+Jwt__LegacySigningKey
 Gateway__FusionArchivePath
 Gateway__InternalSharedSecret
 Gateway__SessionCacheSeconds
@@ -482,7 +485,8 @@ Ví dụ local run với Auth port `5001`, SocialGraph port `5223`, Payment port
 $env:ASPNETCORE_URLS="http://localhost:5099"
 $env:Jwt__Issuer="fakebook-auth"
 $env:Jwt__Audience="fakebook"
-$env:Jwt__SigningKey="<same-signing-key-as-auth-at-least-32-bytes>"
+$env:Jwt__PublicKeyBase64="<SPKI-RSA-public-key-base64>"
+$env:Jwt__KeyId="fakebook-rs256-<fingerprint>"
 $env:Gateway__InternalSharedSecret="<same-secret-as-auth-at-least-32-bytes>"
 $env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
 $env:Subgraphs__Payment__WebhookUrl="http://localhost:1007/internal/webhooks/payos"

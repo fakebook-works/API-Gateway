@@ -409,7 +409,8 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                     ["Gateway:SessionCacheSeconds"] = "30",
                     ["Jwt:Issuer"] = "fakebook-auth",
                     ["Jwt:Audience"] = "fakebook",
-                    ["Jwt:SigningKey"] = "gateway-test-jwt-key-at-least-32-bytes",
+                    ["Jwt:PublicKeyBase64"] = TestJwtKeys.PublicKeyBase64,
+                    ["Jwt:KeyId"] = TestJwtKeys.KeyId,
                     ["Subgraphs:Authentication:Url"] = "http://localhost:1001/graphql"
                 });
             });

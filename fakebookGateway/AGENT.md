@@ -26,7 +26,7 @@ Current capabilities:
 - Expose SocialGraph `createUser` as the canonical public registration mutation.
 - Expose authorized SocialGraph Home operations and hydrate `RecommendationItem.post` through an internal batched lookup.
 - Expose Payment Premium operations and proxy PayOS webhooks through a bounded, rate-limited REST endpoint.
-- Validate HS256 JWT access tokens using configured issuer, audience, and signing key.
+- Validate RS256 JWT access tokens using issuer, audience, public key, algorithm, and `kid`.
 - Validate access-token session state against Auth through the internal `validateGatewaySession` query.
 - Cache Auth session validation results for a short configurable TTL.
 - Strip browser-supplied trusted internal headers before any downstream call.
@@ -91,10 +91,11 @@ Required JWT configuration:
 ```text
 Jwt__Issuer
 Jwt__Audience
-Jwt__SigningKey
+Jwt__PublicKeyBase64
+Jwt__KeyId
 ```
 
-`Jwt:SigningKey` must be at least 32 bytes and must match the Authentication subgraph signing key because Auth issues the access tokens and the Gateway validates them.
+`Jwt:PublicKeyBase64` is the SPKI public half of Auth's RSA key. Gateway never receives the private key.
 
 Required Gateway configuration:
 
@@ -110,7 +111,9 @@ Useful environment variables:
 ASPNETCORE_URLS
 Jwt__Issuer
 Jwt__Audience
-Jwt__SigningKey
+Jwt__PublicKeyBase64
+Jwt__KeyId
+Jwt__LegacySigningKey
 Gateway__FusionArchivePath
 Gateway__InternalSharedSecret
 Gateway__SessionCacheSeconds
@@ -482,7 +485,8 @@ Example local run with Auth on port `5001`, SocialGraph on port `5223`, Payment 
 $env:ASPNETCORE_URLS="http://localhost:5099"
 $env:Jwt__Issuer="fakebook-auth"
 $env:Jwt__Audience="fakebook"
-$env:Jwt__SigningKey="<same-signing-key-as-auth-at-least-32-bytes>"
+$env:Jwt__PublicKeyBase64="<SPKI-RSA-public-key-base64>"
+$env:Jwt__KeyId="fakebook-rs256-<fingerprint>"
 $env:Gateway__InternalSharedSecret="<same-secret-as-auth-at-least-32-bytes>"
 $env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
 $env:Subgraphs__Payment__WebhookUrl="http://localhost:1007/internal/webhooks/payos"

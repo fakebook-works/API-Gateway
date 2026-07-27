@@ -20,7 +20,6 @@ namespace fakebookGateway.Tests;
 public sealed class PaymentWebhookProxyTests
 {
     private const string GatewaySecret = "01234567890123456789012345678901";
-    private const string SigningKey = "test-signing-key-at-least-32-bytes-long";
 
     [Fact]
     public async Task Composite_schema_exposes_payment_and_hides_internal_auth_fields()
@@ -282,14 +281,16 @@ public sealed class PaymentWebhookProxyTests
         {
             builder.UseSetting("Jwt:Issuer", "fakebook-auth");
             builder.UseSetting("Jwt:Audience", "fakebook");
-            builder.UseSetting("Jwt:SigningKey", SigningKey);
+            builder.UseSetting("Jwt:PublicKeyBase64", TestJwtKeys.PublicKeyBase64);
+            builder.UseSetting("Jwt:KeyId", TestJwtKeys.KeyId);
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
                     ["Jwt:Issuer"] = "fakebook-auth",
                     ["Jwt:Audience"] = "fakebook",
-                    ["Jwt:SigningKey"] = SigningKey,
+                    ["Jwt:PublicKeyBase64"] = TestJwtKeys.PublicKeyBase64,
+                    ["Jwt:KeyId"] = TestJwtKeys.KeyId,
                     ["Gateway:InternalSharedSecret"] = GatewaySecret,
                     ["Gateway:SubgraphSecrets:Authentication"] = GatewaySecret + "-auth",
                     ["Gateway:SubgraphSecrets:SocialGraph"] = GatewaySecret + "-socialgraph",
@@ -324,9 +325,15 @@ public sealed class PaymentWebhookProxyTests
 
     private static string CreateAccessToken()
     {
+        using var rsa = TestJwtKeys.CreatePrivateKey();
+        var signingKey = new RsaSecurityKey(rsa)
+        {
+            KeyId = TestJwtKeys.KeyId,
+            CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+        };
         var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey)),
-            SecurityAlgorithms.HmacSha256);
+            signingKey,
+            SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: "fakebook-auth",
             audience: "fakebook",

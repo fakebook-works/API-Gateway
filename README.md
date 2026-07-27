@@ -24,12 +24,14 @@ The composed subgraphs are `Authentication`, `SocialGraph`, `Recommendation`, `S
 
 ## Requirements
 
-- .NET SDK 8.x for local development.
+- .NET SDK 10.x for local development.
 - Docker, if running the container image.
 - Local subgraphs on the canonical ports: Authentication `1001`, SocialGraph `1002`,
   Recommendation `1003`, Search `1004`, Notification `1005`, Messaging `1006`, and
   Payment `1007`.
-- JWT settings must match Authentication. `Gateway:InternalSharedSecret` is the fallback shared secret; any `Gateway:SubgraphSecrets:<Name>` override must match that target service.
+- JWT issuer/audience/public key and `kid` must match Authentication. Every
+  `Gateway:SubgraphSecrets:<Name>` is a distinct required production secret; the legacy
+  shared setting is not a managed-environment fallback.
 
 ## Configuration
 
@@ -41,7 +43,8 @@ Important environment variables:
 ASPNETCORE_URLS=http://localhost:5099
 Jwt__Issuer=fakebook-auth
 Jwt__Audience=fakebook
-Jwt__SigningKey=<same signing key as Authentication>
+Jwt__PublicKeyBase64=<SPKI RSA public key from Authentication>
+Jwt__KeyId=fakebook-rs256-<fingerprint>
 Gateway__InternalSharedSecret=<same shared secret as Authentication>
 Gateway__SubgraphSecrets__Authentication=<optional Auth-specific secret>
 Gateway__SubgraphSecrets__SocialGraph=<optional SocialGraph-specific secret>
@@ -74,7 +77,8 @@ dotnet build .\fakebookGateway\fakebookGateway.csproj
 $env:ASPNETCORE_URLS="http://localhost:5099"
 $env:Jwt__Issuer="fakebook-auth"
 $env:Jwt__Audience="fakebook"
-$env:Jwt__SigningKey="<same signing key as Authentication>"
+$env:Jwt__PublicKeyBase64="<SPKI-RSA-public-key-base64>"
+$env:Jwt__KeyId="fakebook-rs256-<fingerprint>"
 $env:Gateway__InternalSharedSecret="<same shared secret as Authentication>"
 $env:Gateway__FusionArchivePath="gateway.local.far"
 $env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
@@ -188,7 +192,8 @@ A prebuilt image is available:
 docker run --rm -p 5099:8080 `
   -e Jwt__Issuer="fakebook-auth" `
   -e Jwt__Audience="fakebook" `
-  -e Jwt__SigningKey="<same signing key as Authentication>" `
+  -e Jwt__PublicKeyBase64="<SPKI-RSA-public-key-base64>" `
+  -e Jwt__KeyId="fakebook-rs256-<fingerprint>" `
   -e Gateway__InternalSharedSecret="<same shared secret as Authentication>" `
   -e Subgraphs__Authentication__Url="http://host.docker.internal:5001/graphql" `
   -e Subgraphs__Payment__WebhookUrl="http://host.docker.internal:1007/internal/webhooks/payos" `
