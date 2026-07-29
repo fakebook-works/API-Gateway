@@ -200,10 +200,52 @@ internal static class FusionTrustedHeaders
 
         if (includeRefreshToken &&
             !string.IsNullOrWhiteSpace(options.RefreshTokenCookieName) &&
-            context.Request.Cookies.TryGetValue(options.RefreshTokenCookieName, out var refreshToken))
+            TryGetFirstCookieValue(context.Request, options.RefreshTokenCookieName, out var refreshToken))
         {
             Copy(request, GatewayConstants.RefreshTokenHeader, refreshToken);
         }
+    }
+
+    private static bool TryGetFirstCookieValue(HttpRequest request, string cookieName, out string value)
+    {
+        // RFC 6265 orders same-name cookies by longest path first. During the migration from
+        // Path=/ to Path=/graphql browsers can legitimately send both. Request.Cookies folds
+        // duplicate names and may retain the final (legacy root) value, so read the raw order
+        // and forward the path-specific cookie that the browser placed first.
+        foreach (var header in request.Headers.Cookie)
+        {
+            if (string.IsNullOrEmpty(header))
+            {
+                continue;
+            }
+
+            foreach (var segment in header.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var separator = segment.IndexOf('=');
+                if (separator <= 0 ||
+                    !segment[..separator].Trim().Equals(cookieName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var candidate = segment[(separator + 1)..].Trim();
+                if (candidate.Length > 0)
+                {
+                    value = candidate;
+                    return true;
+                }
+            }
+        }
+
+        if (request.Cookies.TryGetValue(cookieName, out var parsed) &&
+            !string.IsNullOrWhiteSpace(parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     private static void Copy(HttpRequestMessage request, string name, string? value)

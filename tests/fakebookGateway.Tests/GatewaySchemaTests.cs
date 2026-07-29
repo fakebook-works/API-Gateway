@@ -95,6 +95,9 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("taggedUsers", queryFields);
         Assert.Contains("mentionedUsers", queryFields);
         Assert.Contains("profileConnections", queryFields);
+        Assert.Contains("profileFriends", queryFields);
+        Assert.Contains("profileContact", queryFields);
+        Assert.Contains("profileAvatarSource", queryFields);
         Assert.Contains("groupJoinRequests", queryFields);
         Assert.Contains("recommendFeed", queryFields);
         Assert.Contains("recommendReels", queryFields);
@@ -271,6 +274,16 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Equal(
             new[] { "mutualFriendCount", "profile" },
             FieldNames(friendProfileWithMutualCount).OrderBy(name => name));
+
+        var profileContact = Assert.Single(
+            types,
+            type => TypeName(type) == "ProfileContactResult");
+        Assert.Equal(new[] { "email" }, FieldNames(profileContact));
+
+        var profileAvatarSource = Assert.Single(
+            types,
+            type => TypeName(type) == "ProfileAvatarSourceResult");
+        Assert.Equal(new[] { "contentId", "mediaId" }, FieldNames(profileAvatarSource).OrderBy(name => name));
 
         var recommendationItem = Assert.Single(
             types,

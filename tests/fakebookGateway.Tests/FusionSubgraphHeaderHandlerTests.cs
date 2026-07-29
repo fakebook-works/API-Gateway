@@ -144,6 +144,36 @@ public sealed class FusionSubgraphHeaderHandlerTests
         Assert.Equal("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", capture.UserAgent);
     }
 
+    [Fact]
+    public async Task AuthHandler_PrefersTheFirstPathSpecificRefreshCookieDuringMigration()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie =
+            "fb_refresh=current-graphql-token; theme=dark; fb_refresh=revoked-root-token";
+        var capture = new CaptureHandler();
+        var handler = new AuthFusionSubgraphHeaderHandler(
+            new HttpContextAccessor { HttpContext = context },
+            new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
+            {
+                SubgraphSecrets = new SubgraphSecretsOptions
+                {
+                    Authentication = "auth-secret-at-least-32-bytes-long-x"
+                }
+            }))
+        {
+            InnerHandler = capture
+        };
+        using var client = new HttpClient(handler);
+
+        using var response = await client.PostAsync(
+            "http://auth/graphql",
+            new StringContent("{}"));
+
+        Assert.Equal(
+            "current-graphql-token",
+            capture.Headers[GatewayConstants.RefreshTokenHeader]);
+    }
+
     private sealed class CaptureHandler : HttpMessageHandler
     {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);

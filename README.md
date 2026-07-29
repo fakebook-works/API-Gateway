@@ -138,12 +138,18 @@ The following completed SocialGraph operations are public through Gateway:
 
 ```text
 Query:    visitedGroups, postDetail, postDetails, homeStories, myStories,
-          friends, profileConnections, friendProfilesWithMutualCounts
+          friends, profileConnections, friendProfilesWithMutualCounts,
+          profileAvatarSource
 Mutation: createUser, recordGroupVisit, createFeedPost,
           createNormalStory, createShareStory, deleteStory
 ```
 
 Raw graph operations and domain mutations without complete ownership authorization remain composition-internal.
+
+`profileAvatarSource(userId)` returns the exact source post/media pair for a profile avatar
+only when SocialGraph's current privacy, deletion and two-way block checks allow that viewer
+to open it. The pair is provenance, not an authorization token; clients still load the post
+through the normal `postDetail` Gateway operation.
 
 The recommended feed is a single composed query. Recommendation owns ordering; SocialGraph owns post data, privacy, block checks, and user/group post discrimination:
 

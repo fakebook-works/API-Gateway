@@ -31,6 +31,7 @@ type Mutation {
     @cost(weight: "10")
   leaveConversation(conversationId: UUID!): ConversationView!
     @cost(weight: "10")
+  deleteGroupConversation(conversationId: UUID!): Boolean! @cost(weight: "10")
   sendMessage(input: SendMessageInput!): MessageView! @cost(weight: "10")
   editMessage(input: EditMessageInput!): MessageView! @cost(weight: "10")
   deleteMessage(input: DeleteMessageInput!): MessageView! @cost(weight: "10")
@@ -98,6 +99,11 @@ type MessageAttachmentView {
   thumbnailUrl: String
 }
 
+type MessageEditRevisionView {
+  text: String!
+  versionAt: DateTime!
+}
+
 type MessagePage {
   items: [MessageView!]!
   pageInfo: PageInfo!
@@ -116,15 +122,20 @@ type MessageView {
   senderUserId: Long!
   sequence: Long!
   clientMessageId: UUID!
+  kind: MessageKind!
+  systemEvent: SystemMessageEvent
+  systemSubjectUserId: Long
   text: String
   replyToMessageId: UUID
   createdAt: DateTime!
   editedAt: DateTime
+  editHistory: [MessageEditRevisionView!]!
   deletedAt: DateTime
   attachments: [MessageAttachmentView!]!
   reactions: [MessageReactionView!]!
   deleted: Boolean!
   sender: User @cost(weight: "10")
+  systemSubject: User @cost(weight: "10")
 }
 
 type PageInfo {
@@ -160,7 +171,7 @@ type UserPresenceView {
   userId: Long!
   isOnline: Boolean!
   expiresAt: DateTime
-  updatedAt: DateTime!
+  updatedAt: DateTime
 }
 
 input AddConversationMembersInput {
@@ -246,6 +257,11 @@ enum ConversationType {
   GROUP
 }
 
+enum MessageKind {
+  USER
+  SYSTEM
+}
+
 enum ParticipantRole {
   ADMIN
   MEMBER
@@ -258,6 +274,16 @@ enum ScalarSerializationType {
   FLOAT
   OBJECT
   LIST
+}
+
+enum SystemMessageEvent {
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MEMBER_LEFT
+  ADMIN_GRANTED
+  ADMIN_REVOKED
+  GROUP_RENAMED
+  GROUP_AVATAR_CHANGED
 }
 
 "The `DateTime` scalar type represents a date and time with time zone offset information."

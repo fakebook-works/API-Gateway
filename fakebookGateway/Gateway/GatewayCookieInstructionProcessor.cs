@@ -36,13 +36,36 @@ public static class GatewayCookieInstructionProcessor
             var value = instruction.TryGetString("value");
             if (!string.IsNullOrEmpty(value))
             {
+                DeleteLegacyRootCookie(context, name, cookieOptions);
                 context.Response.Cookies.Append(name, value, cookieOptions);
             }
         }
         else if (operation.Equals("CLEAR", StringComparison.OrdinalIgnoreCase))
         {
+            DeleteLegacyRootCookie(context, name, cookieOptions);
             context.Response.Cookies.Delete(name, cookieOptions);
         }
+    }
+
+    private static void DeleteLegacyRootCookie(
+        HttpContext context,
+        string name,
+        CookieOptions currentOptions)
+    {
+        if (string.Equals(currentOptions.Path, "/", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // A refresh cookie used to be issued at Path=/ under this same name. Deleting that
+        // exact cookie prevents it from shadowing the newer /graphql cookie on token refresh.
+        context.Response.Cookies.Delete(name, new CookieOptions
+        {
+            Path = "/",
+            HttpOnly = currentOptions.HttpOnly,
+            Secure = currentOptions.Secure,
+            SameSite = currentOptions.SameSite
+        });
     }
 
     private static SameSiteMode ParseSameSite(string? value)

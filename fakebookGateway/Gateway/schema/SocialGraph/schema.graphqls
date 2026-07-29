@@ -17,6 +17,8 @@ type Query {
     @cost(weight: "10")
   profileConnections(userId: Long!, associationType: Short!, limit: Int!): [FriendProfileWithMutualCountResult!]!
     @cost(weight: "10")
+  profileFriends(targetUserId: Long!, limit: Int!): [FriendProfileWithMutualCountResult!]!
+    @cost(weight: "10")
   groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
   profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
@@ -32,6 +34,9 @@ type Query {
   recommendationItem(postId: ID!): RecommendationItem
   reelRecommendationItem(reelId: ID!): ReelRecommendationItem
   profile(userId: Long!): UserProfileResult @cost(weight: "10")
+  profileAvatarSource(userId: Long!): ProfileAvatarSourceResult
+    @cost(weight: "10")
+  profileContact(userId: Long!): ProfileContactResult @cost(weight: "10")
   group(groupId: Long!): GroupResult @cost(weight: "10")
   visitedGroups(userId: Long!, limit: Int!, cursor: String): VisitedGroupPageResult!
     @cost(weight: "10")
@@ -116,6 +121,8 @@ type Mutation {
     avatarUrl: String!
     originalUrl: String
     privacy: Int
+    sourceContentId: Long
+    sourceMediaId: Long
   ): UserProfileResult @cost(weight: "10")
   changeUserBackground(
     userId: Long!
@@ -253,6 +260,9 @@ type ContentResult {
   create: String!
   authorId: Long!
   media: [MediaResult!]!
+  aspectRatio: Float
+  focalPointX: Float
+  focalPointY: Float
 }
 
 type CreateUserPayload {
@@ -426,6 +436,15 @@ type PostGroup {
   canJoin: Boolean!
 }
 
+type ProfileAvatarSourceResult {
+  contentId: ID!
+  mediaId: ID!
+}
+
+type ProfileContactResult {
+  email: String!
+}
+
 type ProfilePostPageResult {
   items: [HomePost!]!
   endCursor: String
@@ -449,6 +468,9 @@ type ReelDetail {
   content: String!
   privacy: Int!
   create: String!
+  aspectRatio: Float
+  focalPointX: Float
+  focalPointY: Float
   author: PostAuthor!
   media: [MediaResult!]!
   mentions: [MentionUserResult!]
@@ -627,6 +649,9 @@ input CreateReelInput {
   content: String!
   media: MediaInput
   privacy: Int! = 0
+  aspectRatio: Float
+  focalPointX: Float
+  focalPointY: Float
 }
 
 input CreateShareStoryInput {
