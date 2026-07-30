@@ -14,6 +14,14 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddFakebookServiceDefaults(builder.Configuration, "fakebook-gateway");
 
+builder.Services
+    .AddOptions<SubgraphEndpointsOptions>()
+    .Bind(builder.Configuration.GetSection(SubgraphEndpointsOptions.SectionName))
+    .Validate(
+        options => options.HasValidEndpoints(),
+        "Every Subgraphs:<Name>:Url must be an absolute HTTP(S) URL without credentials, query, or fragment.")
+    .ValidateOnStart();
+
 // Cap the accepted request body for the public GraphQL endpoint (default 2 MiB). Legitimate
 // GraphQL JSON payloads are tiny; media never transits the gateway. This blunts oversized-query
 // memory/CPU amplification (Kestrel's default is 30 MB). Ignored by the in-memory test server.
@@ -150,10 +158,16 @@ builder.Services.AddHttpClient("auth-internal", (services, client) =>
 
 builder.Services
     .AddHttpClient("auth-fusion")
+    .AddHttpMessageHandler(serviceProvider => new FusionSubgraphEndpointHandler(
+        serviceProvider.GetRequiredService<IOptionsMonitor<SubgraphEndpointsOptions>>(),
+        GatewaySubgraphs.Authentication))
     .AddHttpMessageHandler<AuthFusionSubgraphHeaderHandler>();
 
 builder.Services
     .AddHttpClient("payment-fusion")
+    .AddHttpMessageHandler(serviceProvider => new FusionSubgraphEndpointHandler(
+        serviceProvider.GetRequiredService<IOptionsMonitor<SubgraphEndpointsOptions>>(),
+        GatewaySubgraphs.Payment))
     .AddHttpMessageHandler<PaymentFusionSubgraphHeaderHandler>();
 
 builder.Services
@@ -359,7 +373,9 @@ app.UseRateLimiter();
 app.UseMiddleware<GatewaySessionValidationMiddleware>();
 app.UseMiddleware<GraphQlCookieResponseMiddleware>();
 
-app.MapGraphQL("/graphql").RequireRateLimiting(GraphQlRateLimitPolicy);
+app.MapGraphQL("/graphql")
+    .WithOptions(options => options.Tool.Enable = app.Environment.IsDevelopment())
+    .RequireRateLimiting(GraphQlRateLimitPolicy);
 app.MapPaymentWebhookProxy();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
@@ -425,6 +441,9 @@ static IHttpClientBuilder AddFusionClient(
     string subgraphName) =>
     services
         .AddHttpClient(clientName)
+        .AddHttpMessageHandler(serviceProvider => new FusionSubgraphEndpointHandler(
+            serviceProvider.GetRequiredService<IOptionsMonitor<SubgraphEndpointsOptions>>(),
+            subgraphName))
         .AddHttpMessageHandler(serviceProvider => new FusionSubgraphHeaderHandler(
             serviceProvider.GetRequiredService<IHttpContextAccessor>(),
             serviceProvider.GetRequiredService<IOptionsMonitor<GatewayOptions>>(),

@@ -56,6 +56,12 @@ Gateway__SubgraphSecrets__Payment=<optional Payment-specific secret>
 Gateway__SessionCacheSeconds=30
 Gateway__RefreshTokenCookieName=fb_refresh
 Subgraphs__Authentication__Url=http://localhost:1001/graphql
+Subgraphs__SocialGraph__Url=http://localhost:1002/graphql
+Subgraphs__Recommendation__Url=http://localhost:1003/graphql
+Subgraphs__Search__Url=http://localhost:1004/graphql
+Subgraphs__Notification__Url=http://localhost:1005/graphql
+Subgraphs__Messaging__Url=http://localhost:1006/graphql
+Subgraphs__Payment__Url=http://localhost:1007/graphql
 Subgraphs__Payment__WebhookUrl=http://localhost:1007/internal/webhooks/payos
 PaymentGateway__TimeoutSeconds=10
 PaymentGateway__WebhookPermitLimit=60
@@ -64,10 +70,12 @@ PaymentGateway__WebhookWindowSeconds=60
 
 ## Run Locally
 
-Start all composed subgraphs first, then run the Gateway. The committed `gateway.far`
-uses production DNS. Development composition writes `gateway.local.far` with canonical
-localhost ports and automatically uses the repo-local `.tools/nitro.exe` when Nitro is
-not installed globally.
+Start all composed subgraphs first, then run the Gateway. Both committed archives use the
+canonical loopback ports. Development composition writes `gateway.local.far` and
+automatically uses the repo-local `.tools/nitro.exe` when Nitro is not installed globally.
+At runtime every Fusion request is rewritten from the archive URL to its corresponding
+`Subgraphs__<Name>__Url`, so a container or orchestrator can override topology without
+recomposing the schema.
 
 ```powershell
 dotnet restore .\fakebookGateway.sln
@@ -82,6 +90,12 @@ $env:Jwt__KeyId="fakebook-rs256-<fingerprint>"
 $env:Gateway__InternalSharedSecret="<same shared secret as Authentication>"
 $env:Gateway__FusionArchivePath="gateway.local.far"
 $env:Subgraphs__Authentication__Url="http://localhost:1001/graphql"
+$env:Subgraphs__SocialGraph__Url="http://localhost:1002/graphql"
+$env:Subgraphs__Recommendation__Url="http://localhost:1003/graphql"
+$env:Subgraphs__Search__Url="http://localhost:1004/graphql"
+$env:Subgraphs__Notification__Url="http://localhost:1005/graphql"
+$env:Subgraphs__Messaging__Url="http://localhost:1006/graphql"
+$env:Subgraphs__Payment__Url="http://localhost:1007/graphql"
 $env:Subgraphs__Payment__WebhookUrl="http://localhost:1007/internal/webhooks/payos"
 
 dotnet run --project .\fakebookGateway\fakebookGateway.csproj
@@ -206,7 +220,16 @@ docker run --rm -p 5099:8080 `
   ghcr.io/fakebook-works/api-gateway:main
 ```
 
-Important: Fusion subgraph transport URLs are stored in `gateway.far`. The committed production archive uses the internal DNS names and ports `authentication:1001`, `social-graph:1002`, `recommendation:1003`, `search:1004`, `notification:1005`, `messaging:1006`, and `payment:1007`. Payment's REST webhook target is configured separately through `Subgraphs:Payment:WebhookUrl`.
+Important: the committed Fusion archive uses `127.0.0.1:1001..1007`, and those are also
+the safe runtime defaults. Deployments where services do not share a network namespace
+must set all seven `Subgraphs__<Name>__Url` values (the sample Compose file does this with
+service DNS). Payment's REST webhook target remains separate at
+`Subgraphs__Payment__WebhookUrl`. Gateway validates every GraphQL endpoint as an absolute
+HTTP(S) URL without embedded credentials, query, or fragment and fails startup on bad
+configuration.
+
+Nitro is served at `/graphql` only when `ASPNETCORE_ENVIRONMENT=Development`. Production
+keeps the GraphQL HTTP/SSE endpoint active but never serves the browser IDE.
 
 Build locally instead:
 

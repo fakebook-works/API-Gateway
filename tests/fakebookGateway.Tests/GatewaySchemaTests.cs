@@ -236,6 +236,10 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));
         Assert.Contains("mentions", FieldNames(groupPost));
+        var visitedGroup = Assert.Single(types, type => TypeName(type) == "VisitedGroupResult");
+        Assert.Equal(
+            new[] { "avatar", "id", "name", "visitedAt" },
+            FieldNames(visitedGroup).OrderBy(name => name));
         var feedPost = Assert.Single(types, type => TypeName(type) == "FeedPostDetail");
         Assert.Contains("sharedSource", FieldNames(feedPost));
         Assert.Contains("mentions", FieldNames(feedPost));
@@ -300,11 +304,11 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
             FieldNames(reelRecommendationItem).OrderBy(name => name));
 
         Assert.Equal(
-            new[] { "user" },
-            FieldNames(Assert.Single(types, type => TypeName(type) == "UserSearchResult")));
+            new[] { "user", "viewerIsFollowing", "viewerIsFriend", "viewerIsSelf" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "UserSearchResult")).OrderBy(name => name));
         Assert.Equal(
-            new[] { "group" },
-            FieldNames(Assert.Single(types, type => TypeName(type) == "GroupSearchResult")));
+            new[] { "group", "viewerIsMember" },
+            FieldNames(Assert.Single(types, type => TypeName(type) == "GroupSearchResult")).OrderBy(name => name));
         Assert.Equal(
             new[] { "post" },
             FieldNames(Assert.Single(types, type => TypeName(type) == "FeedPostSearchResult")));
@@ -401,14 +405,30 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
 
     public sealed class GatewayFactory : WebApplicationFactory<Program>
     {
+        private readonly string _environment;
+        private readonly IReadOnlyDictionary<string, string?> _configurationOverrides;
+
+        public GatewayFactory() : this("Development")
+        {
+        }
+
+        internal GatewayFactory(
+            string environment,
+            IReadOnlyDictionary<string, string?>? configurationOverrides = null)
+        {
+            _environment = environment;
+            _configurationOverrides = configurationOverrides ??
+                new Dictionary<string, string?>();
+        }
+
         public TestSubgraphHandler Subgraphs { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment(_environment);
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                var values = new Dictionary<string, string?>
                 {
                     ["Gateway:FusionArchivePath"] = FindFusionArchive(),
                     ["Gateway:InternalSharedSecret"] = "gateway-test-secret-at-least-32-bytes",
@@ -425,7 +445,12 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                     ["Jwt:PublicKeyBase64"] = TestJwtKeys.PublicKeyBase64,
                     ["Jwt:KeyId"] = TestJwtKeys.KeyId,
                     ["Subgraphs:Authentication:Url"] = "http://localhost:1001/graphql"
-                });
+                };
+                foreach (var (key, value) in _configurationOverrides)
+                {
+                    values[key] = value;
+                }
+                configuration.AddInMemoryCollection(values);
             });
             builder.ConfigureTestServices(services =>
             {

@@ -363,6 +363,7 @@ type GroupResult {
 type GroupSearchResult {
   referenceId: ID!
   group: GroupResult!
+  viewerIsMember: Boolean!
 }
 
 type GroupViewerStateResult {
@@ -571,6 +572,9 @@ type UserRelationshipStateResult {
 type UserSearchResult {
   referenceId: ID!
   user: User!
+  viewerIsSelf: Boolean!
+  viewerIsFriend: Boolean!
+  viewerIsFollowing: Boolean!
 }
 
 type UserSummaryPageResult {
@@ -596,6 +600,7 @@ type VisitedGroupResult {
   id: Long!
   avatar: String!
   name: String!
+  visitedAt: String!
 }
 
 "Union of all types that key directive applied. This information is needed by the Apollo federation gateway."

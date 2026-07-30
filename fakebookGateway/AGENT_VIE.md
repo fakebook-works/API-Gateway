@@ -54,7 +54,8 @@ Giới hạn hiện tại:
 - PayOS webhook delivery hiện đồng bộ; Payment sở hữu provider verification, idempotency, order state và retry.
 - Fusion composition hiện là manual local workflow.
 - Gateway chưa implement field-level authorization rule. Subgraph phải tự protect private operations bằng internal headers và `X-Gateway-Secret`, hoặc Gateway cần được mở rộng field policy trước khi expose sensitive fields từ subgraph yếu.
-- Fusion URLs được bake vào `gateway.far` lúc compose. Runtime config `Subgraphs:*:Url` hiện dùng cho internal client của Gateway như Auth session validation, không phải generic service discovery cho mọi Fusion transport.
+- Fusion archive giữ URL loopback chuẩn; `FusionSubgraphEndpointHandler` thay URL của mọi request transport bằng cấu hình runtime `Subgraphs:<Name>:Url` đã validate. Nhờ vậy deployment dùng chung network namespace hoặc service DNS đều không cần compose lại archive.
+- Nitro tại `/graphql` chỉ bật ở Development. Production vẫn phục vụ GraphQL HTTP/SSE nhưng không phục vụ IDE.
 
 ## Các File Quan Trọng
 
@@ -123,6 +124,12 @@ Gateway__AllowedOrigins__1
 Gateway__AllowedOrigins__2
 Subgraphs__Authentication__Url
 Subgraphs__Authentication__GraphQLEndpoint
+Subgraphs__SocialGraph__Url
+Subgraphs__Recommendation__Url
+Subgraphs__Search__Url
+Subgraphs__Notification__Url
+Subgraphs__Messaging__Url
+Subgraphs__Payment__Url
 Subgraphs__Payment__WebhookUrl
 PaymentGateway__TimeoutSeconds
 PaymentGateway__WebhookPermitLimit
@@ -141,7 +148,10 @@ PaymentWebhookEndpoint = http://localhost:1007/internal/webhooks/payos
 PaymentWebhookMaximumBodyBytes = 65536
 ```
 
-`Subgraphs__Authentication__Url` được internal Auth session validator của Gateway sử dụng. `Subgraphs__Payment__WebhookUrl` chỉ dành cho PayOS REST proxy. Fusion GraphQL transport URL nằm trong `Gateway/schema/<Subgraph>/schema-settings.json` tương ứng và được compose vào `gateway.far`.
+Mỗi `Subgraphs__<Name>__Url` ghi đè Fusion GraphQL transport tương ứng ở runtime;
+`Subgraphs__Authentication__Url` đồng thời được internal Auth session validator sử dụng.
+`Subgraphs__Payment__WebhookUrl` chỉ dành cho PayOS REST proxy. Cả bảy GraphQL URL được
+validate lúc startup và mặc định dùng dải `127.0.0.1:1001..1007`.
 
 ## Middleware Order
 
@@ -382,7 +392,7 @@ fakebookGateway/Gateway/schema/<SubgraphName>/
       "SUBGRAPH_NAME_URL": "http://localhost:1004/graphql"
     },
     "Production": {
-      "SUBGRAPH_NAME_URL": "http://subgraph-service/graphql"
+      "SUBGRAPH_NAME_URL": "http://127.0.0.1:1004/graphql"
     }
   }
 }
@@ -682,7 +692,7 @@ Template:
       "SEARCH_URL": "http://localhost:1004/graphql"
     },
     "Production": {
-      "SEARCH_URL": "http://search/graphql"
+      "SEARCH_URL": "http://127.0.0.1:1004/graphql"
     }
   }
 }

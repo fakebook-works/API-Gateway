@@ -69,7 +69,9 @@ query RecommendedFeed($userId: ID!, $skip: Int! = 0, $take: Int! = 20) {
 - `take` duoc clamp `1..100`; `skip` toi thieu `0`.
 - Thu tu item la thu tu rank cua Recommendation.
 - `post` la nullable. Bo item neu `post == null`; truong hop nay xay ra khi post bi xoa, block, private, hoac graph data khong hop le sau luc rank.
-- `FeedPostDetail` la bai user. `GroupPostDetail` luon co them `group`.
+- `FeedPostDetail` la bai user. `GroupPostDetail` luon co them `group`; field `privacy`
+  cua GroupPost duoc suy ra luc doc tu Group (`0` public, `1` private), khong duoc luu
+  rieng tren bai viet.
 - Score ranking khong nam trong public contract.
 
 ## Group Shortcuts
@@ -87,14 +89,43 @@ Lay shortcut:
 ```graphql
 query VisitedGroups($userId: Long!, $limit: Int!, $cursor: String) {
   visitedGroups(userId: $userId, limit: $limit, cursor: $cursor) {
-    items { id name avatar }
+    items { id name avatar visitedAt }
     endCursor
     hasNextPage
   }
 }
 ```
 
-`limit` clamp `1..100`. Cursor la opaque keyset cursor; frontend chi luu va truyen lai `endCursor`. Chi load tiep khi `hasNextPage == true`. Private group khong con quyen xem se bi omit.
+`limit` clamp `1..100`. `visitedAt` la timestamp ISO-8601 lay tu thoi gian cua canh
+`Visited(29)` de client hien thi thoi gian tuong doi. Cursor la opaque keyset cursor;
+frontend chi luu va truyen lai `endCursor`. Chi load tiep khi `hasNextPage == true`.
+Private group khong con quyen xem se bi omit.
+
+## Fast Search Viewer Metadata
+
+Fast-search result duoc SocialGraph hydrate them metadata theo viewer hien tai:
+
+```graphql
+query FastSearch($keyword: String!) {
+  fastSearch(keyword: $keyword) {
+    ... on UserSearchResult {
+      viewerIsSelf
+      viewerIsFriend
+      viewerIsFollowing
+      user { id name avatar }
+    }
+    ... on GroupSearchResult {
+      viewerIsMember
+      group { id name avatar memberCount }
+    }
+  }
+}
+```
+
+Bon field `viewerIsSelf`, `viewerIsFriend`, `viewerIsFollowing`, `viewerIsMember` duoc SocialGraph tinh tu
+trusted Gateway caller va association hien tai; client khong truyen `viewerId`. Admin nhom
+duoc tinh la thanh vien. Frontend dung cac field nay cho nhan `Ban`, `Ban be`, `Dang theo doi`
+va `Nhom cua ban` ma khong suy doan tu danh sach phan trang.
 
 ## Post Detail
 

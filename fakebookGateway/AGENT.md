@@ -54,7 +54,8 @@ Current limitations:
 - Payment webhook delivery is synchronous; Payment owns provider verification, idempotency, order state, and retry handling.
 - Fusion composition is currently a manual local workflow.
 - The Gateway does not currently implement field-level authorization rules. Subgraphs must protect their own private operations using the internal headers and `X-Gateway-Secret`, or the Gateway must be extended with field policy before exposing sensitive fields from a weak subgraph.
-- Fusion URLs are baked into `gateway.far` during composition. Runtime `Subgraphs:*:Url` config is currently used by Gateway-owned internal clients such as Auth session validation, not as generic service discovery for every Fusion transport.
+- Fusion archives keep canonical loopback URLs, while `FusionSubgraphEndpointHandler` rewrites every outgoing transport request from validated runtime `Subgraphs:<Name>:Url` configuration. This supports shared-network-namespace and service-DNS deployments without recomposition.
+- Nitro at `/graphql` is Development-only. Production keeps GraphQL HTTP/SSE active with the IDE disabled.
 
 ## Important Files
 
@@ -123,6 +124,12 @@ Gateway__AllowedOrigins__1
 Gateway__AllowedOrigins__2
 Subgraphs__Authentication__Url
 Subgraphs__Authentication__GraphQLEndpoint
+Subgraphs__SocialGraph__Url
+Subgraphs__Recommendation__Url
+Subgraphs__Search__Url
+Subgraphs__Notification__Url
+Subgraphs__Messaging__Url
+Subgraphs__Payment__Url
 Subgraphs__Payment__WebhookUrl
 PaymentGateway__TimeoutSeconds
 PaymentGateway__WebhookPermitLimit
@@ -141,7 +148,10 @@ PaymentWebhookEndpoint = http://localhost:1007/internal/webhooks/payos
 PaymentWebhookMaximumBodyBytes = 65536
 ```
 
-`Subgraphs__Authentication__Url` is used by the Gateway internal Auth session validator. `Subgraphs__Payment__WebhookUrl` is used only by the PayOS REST proxy. Fusion GraphQL transport URLs are configured in each `Gateway/schema/<Subgraph>/schema-settings.json` and composed into `gateway.far`.
+Every `Subgraphs__<Name>__Url` overrides that Fusion GraphQL transport at runtime;
+`Subgraphs__Authentication__Url` also drives the internal Auth session validator.
+`Subgraphs__Payment__WebhookUrl` is used only by the PayOS REST proxy. All seven GraphQL
+URLs are startup-validated and default to the canonical `127.0.0.1:1001..1007` range.
 
 ## Middleware Order
 
@@ -382,7 +392,7 @@ fakebookGateway/Gateway/schema/<SubgraphName>/
       "SUBGRAPH_NAME_URL": "http://localhost:1004/graphql"
     },
     "Production": {
-      "SUBGRAPH_NAME_URL": "http://subgraph-service/graphql"
+      "SUBGRAPH_NAME_URL": "http://127.0.0.1:1004/graphql"
     }
   }
 }
@@ -682,7 +692,7 @@ Template:
       "SEARCH_URL": "http://localhost:1004/graphql"
     },
     "Production": {
-      "SEARCH_URL": "http://search/graphql"
+      "SEARCH_URL": "http://127.0.0.1:1004/graphql"
     }
   }
 }

@@ -38,7 +38,7 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
             5016 or 1007 => "Payment",
             _ => "Unknown"
         };
-        _requests.Enqueue(new CapturedRequest(service, body, headers));
+        _requests.Enqueue(new CapturedRequest(service, request.RequestUri, body, headers));
 
         if (service == "Messaging" &&
             request.Headers.Accept.Any(value =>
@@ -582,5 +582,6 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
 
 public sealed record CapturedRequest(
     string Service,
+    Uri? RequestUri,
     string Body,
     IReadOnlyDictionary<string, string> Headers);

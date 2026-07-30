@@ -11,7 +11,7 @@
       "AUTHENTICATION_URL": "http://127.0.0.1:1001/graphql"
     },
     "Production": {
-      "AUTHENTICATION_URL": "http://authentication:1001/graphql"
+      "AUTHENTICATION_URL": "http://127.0.0.1:1001/graphql"
     }
   }
 }

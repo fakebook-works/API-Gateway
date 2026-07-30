@@ -7,7 +7,7 @@ using Xunit;
 public sealed class FusionArchiveContractTests
 {
     [Fact]
-    public void Archive_ComposesEverySubgraphWithProductionTransportAndNamedClient()
+    public void Archive_ComposesEverySubgraphWithCanonicalLoopbackTransportAndNamedClient()
     {
         using var archive = ZipFile.OpenRead(FindFusionArchive());
         using var metadata = ReadJson(archive, "archive-metadata.json");
@@ -31,13 +31,13 @@ public sealed class FusionArchiveContractTests
         var sources = settings.RootElement.GetProperty("sourceSchemas");
         var expected = new Dictionary<string, (string Url, string Client)>
         {
-            ["Authentication"] = ("http://authentication:1001/graphql", "auth-fusion"),
-            ["SocialGraph"] = ("http://social-graph:1002/graphql", "socialgraph-fusion"),
-            ["Recommendation"] = ("http://recommendation:1003/graphql", "recommendation-fusion"),
-            ["Search"] = ("http://search:1004/graphql", "search-fusion"),
-            ["Notification"] = ("http://notification:1005/graphql", "notification-fusion"),
-            ["Messaging"] = ("http://messaging:1006/graphql", "messaging-fusion"),
-            ["Payment"] = ("http://payment:1007/graphql", "payment-fusion")
+            ["Authentication"] = ("http://127.0.0.1:1001/graphql", "auth-fusion"),
+            ["SocialGraph"] = ("http://127.0.0.1:1002/graphql", "socialgraph-fusion"),
+            ["Recommendation"] = ("http://127.0.0.1:1003/graphql", "recommendation-fusion"),
+            ["Search"] = ("http://127.0.0.1:1004/graphql", "search-fusion"),
+            ["Notification"] = ("http://127.0.0.1:1005/graphql", "notification-fusion"),
+            ["Messaging"] = ("http://127.0.0.1:1006/graphql", "messaging-fusion"),
+            ["Payment"] = ("http://127.0.0.1:1007/graphql", "payment-fusion")
         };
 
         foreach (var (sourceName, transportContract) in expected)
