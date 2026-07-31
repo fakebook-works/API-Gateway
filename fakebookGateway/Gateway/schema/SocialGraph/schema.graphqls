@@ -20,6 +20,7 @@ type Query {
   profileFriends(targetUserId: Long!, limit: Int!): [FriendProfileWithMutualCountResult!]!
     @cost(weight: "10")
   groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
+  groupSuggestions(limit: Int!): [GroupSuggestionResult!]! @cost(weight: "10")
   profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
   profileReels(userId: Long!, limit: Int!, cursor: String): ProfileReelPageResult!
@@ -364,6 +365,19 @@ type GroupSearchResult {
   referenceId: ID!
   group: GroupResult!
   viewerIsMember: Boolean!
+}
+
+type GroupSuggestionFriendResult {
+  id: Long!
+  name: String!
+  avatar: String!
+}
+
+type GroupSuggestionResult {
+  group: GroupResult!
+  friendMemberCount: Int!
+  friendMembers: [GroupSuggestionFriendResult!]!
+  yesterdayPostCount: Long!
 }
 
 type GroupViewerStateResult {
