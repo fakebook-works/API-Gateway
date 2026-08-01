@@ -66,6 +66,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("groupUserPosts", queryFields);
         Assert.Contains("userPhotos", queryFields);
         Assert.Contains("groupPhotos", queryFields);
+        Assert.Contains("groupMedia", queryFields);
         Assert.Contains("groupUserPhotos", queryFields);
         Assert.Contains("myFeedPhotoCandidates", queryFields);
         Assert.Contains("groupPhotoCandidates", queryFields);
@@ -83,6 +84,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("adminGroups", queryFields);
         Assert.Contains("relationshipState", queryFields);
         Assert.Contains("groupViewerState", queryFields);
+        Assert.Contains("groupFriendMembers", queryFields);
         Assert.Contains("pendingGroupJoins", queryFields);
         Assert.Contains("groupMembers", queryFields);
         Assert.Contains("groupAdmins", queryFields);
@@ -213,12 +215,32 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 .Select(field => field.GetProperty("name").GetString()!)
                 .OrderBy(name => name));
 
+        var createGroupPostInput = Assert.Single(
+            types,
+            type => TypeName(type) == "CreateGroupPostInput");
+        Assert.Equal(
+            new[] { "authorId", "content", "groupId", "media", "mentionedUserIds", "taggedUserIds" },
+            createGroupPostInput.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+
         var updatePostInput = Assert.Single(
             types,
             type => TypeName(type) == "UpdatePostInput");
         Assert.Equal(
             new[] { "content", "id", "media", "privacy" },
             updatePostInput.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+
+        var sharePostInput = Assert.Single(
+            types,
+            type => TypeName(type) == "SharePostInput");
+        Assert.Equal(
+            new[] { "authorId", "content", "destinationGroupId", "privacy", "sourceId" },
+            sharePostInput.GetProperty("inputFields")
                 .EnumerateArray()
                 .Select(field => field.GetProperty("name").GetString()!)
                 .OrderBy(name => name));
@@ -236,6 +258,8 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));
         Assert.Contains("mentions", FieldNames(groupPost));
+        Assert.Contains("taggedUsers", FieldNames(groupPost));
+        Assert.Contains("sharedSource", FieldNames(groupPost));
         var visitedGroup = Assert.Single(types, type => TypeName(type) == "VisitedGroupResult");
         Assert.Equal(
             new[] { "avatar", "id", "name", "visitedAt" },
@@ -250,8 +274,12 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("media", FieldNames(reelDetail));
         var sharedPostSource = Assert.Single(types, type => TypeName(type) == "SharedPostSourceResult");
         Assert.Equal(
-            new[] { "author", "content", "create", "id", "isAvailable", "media", "mentions", "privacy", "type" },
+            new[] { "author", "content", "create", "group", "id", "isAvailable", "media", "mentions", "privacy", "requiresGroupMembership", "type" },
             FieldNames(sharedPostSource).OrderBy(name => name));
+        var sharedPostGroup = Assert.Single(types, type => TypeName(type) == "SharedPostGroupResult");
+        Assert.Equal(
+            new[] { "avatar", "background", "id", "joinRequestPending", "memberCount", "name", "privacy", "viewerIsMember" },
+            FieldNames(sharedPostGroup).OrderBy(name => name));
 
         var commentThreadItem = Assert.Single(types, type => TypeName(type) == "CommentThreadItemResult");
         Assert.Contains("mentions", FieldNames(commentThreadItem));

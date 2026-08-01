@@ -21,6 +21,8 @@ type Query {
     @cost(weight: "10")
   groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
   groupSuggestions(limit: Int!): [GroupSuggestionResult!]! @cost(weight: "10")
+  groupFriendMembers(groupId: Long!, limit: Int!): [GroupSuggestionFriendResult!]!
+    @cost(weight: "10")
   profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
   profileReels(userId: Long!, limit: Int!, cursor: String): ProfileReelPageResult!
@@ -79,6 +81,8 @@ type Query {
     @cost(weight: "10")
   groupPhotos(groupId: Long!, cursor: String, limit: Int!): PhotoPageResult!
     @cost(weight: "10")
+  groupMedia(groupId: Long!, cursor: String, limit: Int!): PhotoPageResult!
+    @cost(weight: "10")
   groupUserPhotos(groupId: Long!, userId: Long!, cursor: String, limit: Int!): PhotoPageResult!
     @cost(weight: "10")
   myFeedPhotoCandidates(cursor: String, limit: Int!): PhotoPageResult!
@@ -105,7 +109,7 @@ type Query {
     @cost(weight: "10")
   mentionedUsers(sourceId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
     @cost(weight: "10")
-  groupJoinRequests(groupId: Long!, cursor: String, limit: Int!): AssociationPageResult!
+  groupJoinRequests(groupId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
     @cost(weight: "10")
   reelCandidates(userId: Long!, limit: Int!): [CandidateItemResult!]!
     @cost(weight: "10")
@@ -336,6 +340,8 @@ type GroupPostDetail {
   group: PostGroup!
   media: [MediaResult!]!
   mentions: [MentionUserResult!]
+  taggedUsers: [UserSummaryResult!]
+  sharedSource: SharedPostSourceResult
 }
 
 type GroupPostPageResult {
@@ -529,6 +535,17 @@ type SavedContentPageResult {
   hasNextPage: Boolean!
 }
 
+type SharedPostGroupResult {
+  id: Long!
+  name: String!
+  avatar: String!
+  background: String!
+  privacy: Int!
+  memberCount: Long!
+  viewerIsMember: Boolean!
+  joinRequestPending: Boolean!
+}
+
 type SharedPostSourceResult {
   id: Long!
   isAvailable: Boolean!
@@ -539,6 +556,8 @@ type SharedPostSourceResult {
   mentions: [MentionUserResult!]
   privacy: Int
   create: String
+  group: SharedPostGroupResult
+  requiresGroupMembership: Boolean!
 }
 
 type User @key(fields: "id") {
@@ -654,6 +673,7 @@ input CreateGroupPostInput {
   groupId: Long!
   content: String!
   media: [MediaInput!]
+  taggedUserIds: [Long!]
   mentionedUserIds: [Long!]
 }
 
@@ -703,6 +723,7 @@ input SharePostInput {
   sourceId: Long!
   content: String!
   privacy: Int!
+  destinationGroupId: Long
 }
 
 input UpdateCommentInput {
