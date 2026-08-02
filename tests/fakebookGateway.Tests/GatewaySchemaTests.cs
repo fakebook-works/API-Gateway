@@ -274,7 +274,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("media", FieldNames(reelDetail));
         var sharedPostSource = Assert.Single(types, type => TypeName(type) == "SharedPostSourceResult");
         Assert.Equal(
-            new[] { "author", "content", "create", "group", "id", "isAvailable", "media", "mentions", "privacy", "requiresGroupMembership", "type" },
+            new[] { "aspectRatio", "author", "content", "create", "focalPointX", "focalPointY", "group", "id", "isAvailable", "media", "mentions", "privacy", "requiresGroupMembership", "type" },
             FieldNames(sharedPostSource).OrderBy(name => name));
         var sharedPostGroup = Assert.Single(types, type => TypeName(type) == "SharedPostGroupResult");
         Assert.Equal(

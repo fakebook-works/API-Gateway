@@ -558,6 +558,9 @@ type SharedPostSourceResult {
   create: String
   group: SharedPostGroupResult
   requiresGroupMembership: Boolean!
+  aspectRatio: Float
+  focalPointX: Float
+  focalPointY: Float
 }
 
 type User @key(fields: "id") {
