@@ -97,6 +97,8 @@ type Query {
     @cost(weight: "10")
   comments(targetId: Long!, cursor: String, limit: Int!): CommentPageResult!
     @cost(weight: "10")
+  commentEditHistory(commentId: Long!): [CommentEditRevisionResult!]!
+    @cost(weight: "10")
   contentEngagement(targetId: Long!): ContentEngagementResult
     @cost(weight: "10")
   savedContent(cursor: String, limit: Int!): SavedContentPageResult!
@@ -226,6 +228,12 @@ type CandidateItemResult {
   createdAt: String!
 }
 
+type CommentEditRevisionResult {
+  content: String!
+  editedAt: String!
+  mentions: [MentionUserResult!]
+}
+
 type CommentPageResult {
   items: [CommentThreadItemResult!]!
   endCursor: String
@@ -244,6 +252,8 @@ type CommentThreadItemResult {
   isFollowingAuthor: Boolean!
   mentions: [MentionUserResult!]
   media: MediaResult
+  isDeleted: Boolean!
+  editedAt: String
 }
 
 type ContentEngagementResult {
@@ -455,6 +465,7 @@ type PostGroup {
   name: String!
   avatar: String!
   canJoin: Boolean!
+  joinRequestPending: Boolean!
 }
 
 type ProfileAvatarSourceResult {
