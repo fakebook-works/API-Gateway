@@ -30,6 +30,8 @@ type Mutation {
     @cost(weight: "10")
   changePassword(input: ChangePasswordInput!): AuthActionPayload!
     @cost(weight: "10")
+  changeEmail(input: ChangeEmailInput!): AuthActionPayload!
+    @cost(weight: "10")
   setPaymentValidDate(input: SetPaymentValidDateInput!): PaymentPremiumState!
     @cost(weight: "10")
 }
@@ -107,6 +109,11 @@ type VerifyEmailPayload {
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
+}
+
+input ChangeEmailInput {
+  currentPassword: String!
+  newEmail: String!
 }
 
 input GatewaySessionValidationInput {

@@ -97,6 +97,10 @@ type Query {
     @cost(weight: "10")
   comments(targetId: Long!, cursor: String, limit: Int!): CommentPageResult!
     @cost(weight: "10")
+  profileMemberGroups(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
+  profileAdminGroups(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
   commentEditHistory(commentId: Long!): [CommentEditRevisionResult!]!
     @cost(weight: "10")
   contentEngagement(targetId: Long!): ContentEngagementResult
