@@ -8,6 +8,7 @@ schema
 }
 
 type Query {
+  userById(id: Long!): User @cost(weight: "10")
   profiles(userIds: [Long!]!): [UserProfileResult!]! @cost(weight: "10")
   friendSuggestions(userId: Long!, limit: Int!): [FriendSuggestionResult!]!
     @cost(weight: "10")
@@ -22,6 +23,8 @@ type Query {
   groups(groupIds: [Long!]!): [GroupResult!]! @cost(weight: "10")
   groupSuggestions(limit: Int!): [GroupSuggestionResult!]! @cost(weight: "10")
   groupFriendMembers(groupId: Long!, limit: Int!): [GroupSuggestionFriendResult!]!
+    @cost(weight: "10")
+  groupInviteCandidates(groupId: Long!, limit: Int!, cursor: String): UserSummaryPageResult!
     @cost(weight: "10")
   profilePosts(userId: Long!, limit: Int!, cursor: String): ProfilePostPageResult!
     @cost(weight: "10")
@@ -68,6 +71,8 @@ type Query {
     @cost(weight: "10")
   groupViewerState(groupId: Long!): GroupViewerStateResult @cost(weight: "10")
   pendingGroupJoins(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!
+    @cost(weight: "10")
+  pendingGroupJoinRequests(userId: Long!, cursor: String, limit: Int!): PendingGroupJoinPageResult!
     @cost(weight: "10")
   groupMembers(groupId: Long!, cursor: String, limit: Int!): UserSummaryPageResult!
     @cost(weight: "10")
@@ -441,6 +446,17 @@ type NormalStory {
   media: [MediaResult!]!
 }
 
+type PendingGroupJoinPageResult {
+  items: [PendingGroupJoinResult!]!
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type PendingGroupJoinResult {
+  group: GroupResult!
+  requestedAt: DateTime!
+}
+
 type PhotoItemResult {
   media: MediaResult!
   contentId: Long!
@@ -782,16 +798,20 @@ input UpdateUserInput {
 "The _Any scalar is used to pass representations of entities from external services into the root _entities field for execution. Validation of the _Any scalar is done by matching the __typename and @external fields defined in the schema."
 scalar _Any
 
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
 "Scalar representing a set of fields."
 scalar FieldSet
-
-"The `Long` scalar type represents a signed 64-bit integer."
-scalar Long
-  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
 
 "The `LocalDate` scalar type represents a date without time or time zone information."
 scalar LocalDate
   @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-date.html")
+
+"The `Long` scalar type represents a signed 64-bit integer."
+scalar Long
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
 
 "The `Short` scalar type represents a signed 16-bit integer."
 scalar Short

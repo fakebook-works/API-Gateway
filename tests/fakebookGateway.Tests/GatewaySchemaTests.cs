@@ -88,7 +88,9 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("relationshipState", queryFields);
         Assert.Contains("groupViewerState", queryFields);
         Assert.Contains("groupFriendMembers", queryFields);
+        Assert.Contains("groupInviteCandidates", queryFields);
         Assert.Contains("pendingGroupJoins", queryFields);
+        Assert.Contains("pendingGroupJoinRequests", queryFields);
         Assert.Contains("groupMembers", queryFields);
         Assert.Contains("groupAdmins", queryFields);
         Assert.Contains("groupPosts", queryFields);
@@ -267,6 +269,18 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Equal(
             new[] { "avatar", "id", "name", "visitedAt" },
             FieldNames(visitedGroup).OrderBy(name => name));
+        var pendingGroupJoinPage = Assert.Single(
+            types,
+            type => TypeName(type) == "PendingGroupJoinPageResult");
+        Assert.Equal(
+            new[] { "endCursor", "hasNextPage", "items" },
+            FieldNames(pendingGroupJoinPage).OrderBy(name => name));
+        var pendingGroupJoin = Assert.Single(
+            types,
+            type => TypeName(type) == "PendingGroupJoinResult");
+        Assert.Equal(
+            new[] { "group", "requestedAt" },
+            FieldNames(pendingGroupJoin).OrderBy(name => name));
         var feedPost = Assert.Single(types, type => TypeName(type) == "FeedPostDetail");
         Assert.Contains("sharedSource", FieldNames(feedPost));
         Assert.Contains("mentions", FieldNames(feedPost));

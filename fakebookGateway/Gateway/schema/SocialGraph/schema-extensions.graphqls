@@ -1,4 +1,5 @@
 extend type Query {
+  userById(id: Long!): User @internal
   userSearchResult(referenceId: ID!): UserSearchResult @lookup @internal
   groupSearchResult(referenceId: ID!): GroupSearchResult @lookup @internal
   feedPostSearchResult(referenceId: ID!): FeedPostSearchResult @lookup @internal

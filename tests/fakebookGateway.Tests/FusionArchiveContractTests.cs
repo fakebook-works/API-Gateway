@@ -86,9 +86,11 @@ public sealed class FusionArchiveContractTests
     {
         using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));
         var sourceSchema = ReadText(archive, "source-schemas/SocialGraph/schema.graphqls");
+        var sourceExtensions = ReadText(archive, "source-schemas/SocialGraph/schema-extensions.graphqls");
         var gatewaySchema = ReadText(archive, "gateway/2.0.0/gateway.graphqls");
 
         Assert.Contains("type User @key(fields: \"id\")", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains("userById(id: Long!): User @internal", sourceExtensions, StringComparison.Ordinal);
         Assert.Contains(
             "field: \"userById(id: Long!): User\"",
             gatewaySchema,
@@ -117,6 +119,35 @@ public sealed class FusionArchiveContractTests
             StringComparison.Ordinal);
         Assert.Contains("scalar LocalDate", gatewaySchema, StringComparison.Ordinal);
         Assert.Contains("birthdate: String! @fusion__field(schema: SOCIAL_GRAPH)", gatewaySchema, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("gateway.far")]
+    [InlineData("gateway.local.far")]
+    public void Archive_ContainsServerOwnedGroupJoinRequestTimestamps(string archiveName)
+    {
+        using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));
+        var sourceSchema = ReadText(archive, "source-schemas/SocialGraph/schema.graphqls");
+        var gatewaySchema = ReadText(archive, "gateway/2.0.0/gateway.graphqls");
+
+        Assert.Contains(
+            "pendingGroupJoins(userId: Long!, cursor: String, limit: Int!): GroupMembershipPageResult!",
+            sourceSchema,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "pendingGroupJoinRequests(userId: Long!, cursor: String, limit: Int!): PendingGroupJoinPageResult!",
+            sourceSchema,
+            StringComparison.Ordinal);
+        Assert.Contains("type PendingGroupJoinResult", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains("requestedAt: DateTime!", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains(
+            "): PendingGroupJoinPageResult!",
+            gatewaySchema,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "requestedAt: DateTime! @fusion__field(schema: SOCIAL_GRAPH)",
+            gatewaySchema,
+            StringComparison.Ordinal);
     }
 
     [Theory]
