@@ -8,7 +8,6 @@ schema
 }
 
 type Query {
-  userById(id: Long!): User @cost(weight: "10")
   profiles(userIds: [Long!]!): [UserProfileResult!]! @cost(weight: "10")
   friendSuggestions(userId: Long!, limit: Int!): [FriendSuggestionResult!]!
     @cost(weight: "10")
@@ -211,6 +210,8 @@ type Mutation {
   save(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
   unsave(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
   watch(userId: Long!, targetId: Long!): Boolean! @cost(weight: "10")
+  recordRecommendationImpressions(input: RecommendationImpressionInput!): OperationResult!
+    @cost(weight: "10")
   tag(postId: Long!, userId: Long!): Boolean! @cost(weight: "10")
   mention(sourceId: Long!, userId: Long!): Boolean! @cost(weight: "10")
 }
@@ -444,6 +445,11 @@ type NormalStory {
   content: String!
   create: String!
   media: [MediaResult!]!
+}
+
+type OperationResult {
+  success: Boolean!
+  message: String
 }
 
 type PendingGroupJoinPageResult {
@@ -750,6 +756,17 @@ input DeleteStoryInput {
 input MediaInput {
   type: Int!
   url: String!
+}
+
+input RecommendationImpressionInput {
+  items: [RecommendationImpressionItemInput!]!
+}
+
+input RecommendationImpressionItemInput {
+  targetId: ID!
+  idempotencyKey: String!
+  dwellMs: Int
+  completionPct: Float
 }
 
 input SharePostInput {

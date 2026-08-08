@@ -327,6 +327,20 @@ public sealed partial class TestSubgraphHandler : HttpMessageHandler
     private static JsonObject SocialGraphResponse(JsonObject request)
     {
         var query = request["query"]?.GetValue<string>() ?? string.Empty;
+        if (query.Contains("recordRecommendationImpressions", StringComparison.Ordinal))
+        {
+            return new JsonObject
+            {
+                ["data"] = new JsonObject
+                {
+                    [GetResponseFieldName(query, "recordRecommendationImpressions")] = new JsonObject
+                    {
+                        ["success"] = true
+                    }
+                }
+            };
+        }
+
         if (query.Contains("userById", StringComparison.Ordinal))
         {
             var userId = FindId(request["variables"], "id");

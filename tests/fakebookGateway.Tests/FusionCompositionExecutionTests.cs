@@ -189,6 +189,62 @@ public sealed class FusionCompositionExecutionTests :
     }
 
     [Fact]
+    public async Task RecommendationImpression_PreservesSnowflakeIdAndTrustedIdentityThroughFusion()
+    {
+        const string snowflakeId = "9007199254740993123";
+        _factory.Subgraphs.Clear();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/graphql")
+        {
+            Content = JsonContent.Create(new
+            {
+                query =
+                    """
+                    mutation RecordRecommendationImpression($input: RecommendationImpressionInput!) {
+                      recordRecommendationImpressions(input: $input) { success }
+                    }
+                    """,
+                variables = new
+                {
+                    input = new
+                    {
+                        items = new[]
+                        {
+                            new
+                            {
+                                targetId = snowflakeId,
+                                idempotencyKey = "gateway-snowflake-contract",
+                                dwellMs = 800,
+                                completionPct = 50
+                            }
+                        }
+                    }
+                }
+            })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken());
+
+        using var response = await _client.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, Diagnostic(responseBody));
+        using var document = JsonDocument.Parse(responseBody);
+        Assert.False(document.RootElement.TryGetProperty("errors", out _), Diagnostic(responseBody));
+        Assert.True(document.RootElement.GetProperty("data")
+            .GetProperty("recordRecommendationImpressions")
+            .GetProperty("success")
+            .GetBoolean());
+
+        var downstream = Assert.Single(
+            _factory.Subgraphs.Requests,
+            captured => captured.Service == "SocialGraph" &&
+                        captured.Body.Contains("recordRecommendationImpressions", StringComparison.Ordinal));
+        Assert.Contains(snowflakeId, downstream.Body, StringComparison.Ordinal);
+        Assert.Equal("42", downstream.Headers[GatewayConstants.UserIdHeader]);
+        Assert.Equal(
+            "socialgraph-test-secret-at-least-32-bytes",
+            downstream.Headers[GatewayConstants.GatewaySecretHeader]);
+    }
+
+    [Fact]
     public async Task Search_HydratesEveryResultKindThroughSocialGraph()
     {
         _factory.Subgraphs.Clear();

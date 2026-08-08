@@ -177,6 +177,7 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("markNotificationRead", mutationFields);
         Assert.Contains("markAllNotificationsRead", mutationFields);
         Assert.Contains("recordSearchResultView", mutationFields);
+        Assert.Contains("recordRecommendationImpressions", mutationFields);
         Assert.DoesNotContain("addObject", mutationFields);
         Assert.DoesNotContain("register", mutationFields);
         Assert.DoesNotContain("setPaymentValidDate", mutationFields);
@@ -259,6 +260,34 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                 .EnumerateArray()
                 .Select(field => field.GetProperty("name").GetString()!)
                 .OrderBy(name => name));
+
+        var recommendationImpressionInput = Assert.Single(
+            types,
+            type => TypeName(type) == "RecommendationImpressionInput");
+        Assert.Equal(
+            new[] { "items" },
+            recommendationImpressionInput.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+
+        var recommendationImpressionItem = Assert.Single(
+            types,
+            type => TypeName(type) == "RecommendationImpressionItemInput");
+        Assert.Equal(
+            new[] { "completionPct", "dwellMs", "idempotencyKey", "targetId" },
+            recommendationImpressionItem.GetProperty("inputFields")
+                .EnumerateArray()
+                .Select(field => field.GetProperty("name").GetString()!)
+                .OrderBy(name => name));
+        var recommendationTargetId = Assert.Single(
+            recommendationImpressionItem.GetProperty("inputFields").EnumerateArray(),
+            field => field.GetProperty("name").GetString() == "targetId");
+        var recommendationTargetIdType = recommendationTargetId.GetProperty("type");
+        Assert.Equal("NON_NULL", recommendationTargetIdType.GetProperty("kind").GetString());
+        Assert.Equal(
+            "ID",
+            recommendationTargetIdType.GetProperty("ofType").GetProperty("name").GetString());
 
         var groupPost = Assert.Single(types, type => TypeName(type) == "GroupPostDetail");
         Assert.Contains("group", FieldNames(groupPost));

@@ -90,7 +90,10 @@ public sealed class FusionArchiveContractTests
         var gatewaySchema = ReadText(archive, "gateway/2.0.0/gateway.graphqls");
 
         Assert.Contains("type User @key(fields: \"id\")", sourceSchema, StringComparison.Ordinal);
-        Assert.Contains("userById(id: Long!): User @internal", sourceExtensions, StringComparison.Ordinal);
+        // Nitro derives the entity lookup from User @key. Declaring userById again in
+        // either source document makes Nitro 16.1.3 register the same lookup twice.
+        Assert.DoesNotContain("userById(", sourceSchema, StringComparison.Ordinal);
+        Assert.DoesNotContain("userById(", sourceExtensions, StringComparison.Ordinal);
         Assert.Contains(
             "field: \"userById(id: Long!): User\"",
             gatewaySchema,
