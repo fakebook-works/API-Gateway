@@ -26,6 +26,7 @@ public sealed class AuthSessionValidator(
     ILogger<AuthSessionValidator> logger) : IAuthSessionValidator
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<GatewaySessionValidationResult>>> _inflight = new();
+    private const int MaxValidationResponseBytes = 64 * 1024;
 
     private const string GraphQlQuery = """
         query ValidateGatewaySession($input: GatewaySessionValidationInput!) {
@@ -72,9 +73,12 @@ public sealed class AuthSessionValidator(
         {
             if (task.IsCompleted)
             {
-                if (_inflight.TryGetValue(cacheKey, out var current) && ReferenceEquals(current, pending))
+                // Forced refreshes use a separate key. Removing the ordinary cache key here
+                // leaves the `force:` entry resident forever, so every later subscription
+                // watchdog check reuses the first result and never observes a revoked session.
+                if (_inflight.TryGetValue(inflightKey, out var current) && ReferenceEquals(current, pending))
                 {
-                    _inflight.TryRemove(cacheKey, out _);
+                    _inflight.TryRemove(inflightKey, out _);
                 }
             }
         }
@@ -132,10 +136,41 @@ public sealed class AuthSessionValidator(
             return invalid;
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(CancellationToken.None);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: CancellationToken.None);
+        var responseBody = await ReadBoundedResponseAsync(response.Content, MaxValidationResponseBytes);
+        if (responseBody is null)
+        {
+            logger.LogWarning(
+                "Auth session validation response exceeded {MaximumBytes} bytes for user {UserId}, session {SessionId}.",
+                MaxValidationResponseBytes,
+                userId,
+                sessionId);
+
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
+        }
+
+        using var document = TryParseValidationResponse(responseBody);
+        if (document is null)
+        {
+            logger.LogWarning(
+                "Auth session validation returned malformed JSON for user {UserId}, session {SessionId}.",
+                userId,
+                sessionId);
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
+        }
         var root = document.RootElement;
-        if (root.TryGetProperty("errors", out var errors) && errors.GetArrayLength() > 0)
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
+            CacheResult(cacheKey, invalid);
+            return invalid;
+        }
+
+        if (root.TryGetProperty("errors", out var errors) &&
+            (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() > 0))
         {
             logger.LogWarning(
                 "Auth session validation returned GraphQL errors for user {UserId}, session {SessionId}.",
@@ -148,8 +183,11 @@ public sealed class AuthSessionValidator(
         }
 
         if (!root.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Object ||
             !data.TryGetProperty("validateGatewaySession", out var validation) ||
-            validation.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            validation.ValueKind != JsonValueKind.Object ||
+            !validation.TryGetProperty("isValid", out var isValidProperty) ||
+            isValidProperty.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
             var invalid = GatewaySessionValidationResult.Invalid(userId, sessionId);
             CacheResult(cacheKey, invalid);
@@ -157,14 +195,73 @@ public sealed class AuthSessionValidator(
         }
 
         var result = new GatewaySessionValidationResult(
-            validation.GetProperty("isValid").GetBoolean(),
-            validation.TryGetInt64("userId") ?? userId,
-            validation.TryGetInt64("sessionId") ?? sessionId,
+            isValidProperty.GetBoolean(),
+            validation.TryGetInt64("userId"),
+            validation.TryGetInt64("sessionId"),
             validation.TryGetInt16("status"),
             validation.TryGetDateTimeOffset("expiresAt"));
 
+        // A successful response is only authoritative for the exact tuple that was
+        // requested. Do not let a malformed/misrouted Auth response (for example one
+        // missing the IDs and status) turn into a valid session for the Gateway caller.
+        if (result.IsValid &&
+            (result.UserId != userId ||
+             result.SessionId != sessionId ||
+             result.Status != 1 ||
+             result.ExpiresAt is null ||
+             result.ExpiresAt <= DateTimeOffset.UtcNow))
+        {
+            result = GatewaySessionValidationResult.Invalid(userId, sessionId);
+        }
+
         CacheResult(cacheKey, result);
         return result;
+    }
+
+    private static async Task<byte[]?> ReadBoundedResponseAsync(
+        HttpContent content,
+        int maximumBytes)
+    {
+        if (content.Headers.ContentLength is { } contentLength && contentLength > maximumBytes)
+        {
+            return null;
+        }
+
+        await using var stream = await content.ReadAsStreamAsync(CancellationToken.None);
+        using var buffer = new MemoryStream(Math.Min(maximumBytes, 8 * 1024));
+        var chunk = new byte[8 * 1024];
+        while (true)
+        {
+            var read = await stream.ReadAsync(chunk.AsMemory(), CancellationToken.None);
+            if (read == 0)
+            {
+                return buffer.ToArray();
+            }
+
+            if (buffer.Length + read > maximumBytes)
+            {
+                return null;
+            }
+
+            await buffer.WriteAsync(chunk.AsMemory(0, read), CancellationToken.None);
+        }
+    }
+
+    private static JsonDocument? TryParseValidationResponse(ReadOnlyMemory<byte> response)
+    {
+        try
+        {
+            return JsonDocument.Parse(response, new JsonDocumentOptions
+            {
+                MaxDepth = 16,
+                AllowTrailingCommas = false,
+                CommentHandling = JsonCommentHandling.Disallow
+            });
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private void CacheResult(string cacheKey, GatewaySessionValidationResult result)

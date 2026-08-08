@@ -37,7 +37,10 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
                       kind
                       name
                       fields { name }
-                      inputFields { name }
+                      inputFields {
+                        name
+                        type { kind name ofType { kind name } }
+                      }
                       possibleTypes { name }
                       enumValues { name }
                     }
@@ -402,6 +405,12 @@ public sealed class GatewaySchemaTests : IClassFixture<GatewaySchemaTests.Gatewa
         Assert.Contains("birthdate", socialProfileInputs);
         Assert.Contains("gender", socialProfileInputs);
         Assert.Contains("location", socialProfileInputs);
+        var birthdateInput = Assert.Single(
+            socialGraphCreateUserInput.GetProperty("inputFields").EnumerateArray(),
+            field => FieldName(field) == "birthdate");
+        var birthdateType = birthdateInput.GetProperty("type");
+        Assert.Equal("NON_NULL", birthdateType.GetProperty("kind").GetString());
+        Assert.Equal("LocalDate", birthdateType.GetProperty("ofType").GetProperty("name").GetString());
 
         Assert.DoesNotContain(
             types,

@@ -28,6 +28,7 @@ public static class GatewayConstants
     public const string UserIdItem = "Fakebook.UserId";
     public const string SessionIdItem = "Fakebook.SessionId";
     public const string CookieInstructionAppliedItem = "Fakebook.CookieInstructionApplied";
+    public const int MaxCorrelationIdLength = 128;
 }
 
 public static class GatewayClaims

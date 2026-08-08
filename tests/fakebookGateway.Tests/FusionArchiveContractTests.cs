@@ -98,6 +98,30 @@ public sealed class FusionArchiveContractTests
     [Theory]
     [InlineData("gateway.far")]
     [InlineData("gateway.local.far")]
+    public void Archive_UsesLocalDateForSocialGraphBirthdateInputs(string archiveName)
+    {
+        using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));
+        var sourceSchema = ReadText(archive, "source-schemas/SocialGraph/schema.graphqls");
+        var gatewaySchema = ReadText(archive, "gateway/2.0.0/gateway.graphqls");
+
+        Assert.Contains("birthdate: LocalDate!", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains("birthdate: LocalDate", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains("scalar LocalDate", sourceSchema, StringComparison.Ordinal);
+        Assert.Contains(
+            "birthdate: LocalDate! @fusion__inputField(schema: SOCIAL_GRAPH)",
+            gatewaySchema,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "birthdate: LocalDate @fusion__inputField(schema: SOCIAL_GRAPH)",
+            gatewaySchema,
+            StringComparison.Ordinal);
+        Assert.Contains("scalar LocalDate", gatewaySchema, StringComparison.Ordinal);
+        Assert.Contains("birthdate: String! @fusion__field(schema: SOCIAL_GRAPH)", gatewaySchema, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("gateway.far")]
+    [InlineData("gateway.local.far")]
     public void Archive_ContainsMessagingAttachmentMetadataContract(string archiveName)
     {
         using var archive = ZipFile.OpenRead(FindFusionArchive(archiveName));

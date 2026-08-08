@@ -76,6 +76,28 @@ public sealed class SubscriptionSessionWatchdogTests
         Assert.True(validator.ForcedRefreshes >= 1);
     }
 
+    [Fact]
+    public async Task An_open_subscription_is_cancelled_when_revalidation_fails()
+    {
+        var validator = new FailingRefreshValidator();
+        var streamCancelled = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var middleware = new GatewaySessionValidationMiddleware(
+            context =>
+            {
+                context.RequestAborted.Register(() => streamCancelled.TrySetResult());
+                return Task.Delay(Timeout.Infinite, context.RequestAborted)
+                    .ContinueWith(_ => { }, TaskScheduler.Default);
+            },
+            NullLogger<GatewaySessionValidationMiddleware>.Instance);
+
+        await middleware.InvokeAsync(CreateSubscriptionContext(), validator, Options())
+            .WaitAsync(TimeSpan.FromSeconds(20));
+
+        await streamCancelled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.True(validator.ForcedRefreshes >= 1);
+    }
+
     private static IOptionsMonitor<GatewayOptions> Options() =>
         new StaticOptionsMonitor<GatewayOptions>(new GatewayOptions
         {
@@ -118,6 +140,31 @@ public sealed class SubscriptionSessionWatchdogTests
                 sessionId,
                 null,
                 null));
+        }
+    }
+
+    private sealed class FailingRefreshValidator : IAuthSessionValidator
+    {
+        public int ForcedRefreshes { get; private set; }
+
+        public Task<GatewaySessionValidationResult> ValidateAsync(
+            long userId,
+            long sessionId,
+            CancellationToken cancellationToken,
+            bool forceRefresh = false)
+        {
+            if (forceRefresh)
+            {
+                ForcedRefreshes++;
+                throw new HttpRequestException("Auth validation is unavailable.");
+            }
+
+            return Task.FromResult(new GatewaySessionValidationResult(
+                true,
+                userId,
+                sessionId,
+                1,
+                DateTimeOffset.UtcNow.AddMinutes(5)));
         }
     }
 

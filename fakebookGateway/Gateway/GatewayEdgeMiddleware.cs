@@ -38,12 +38,9 @@ public sealed class GatewayEdgeMiddleware(RequestDelegate next)
             context.Request.Headers.Remove(header);
         }
 
-        var correlationId = context.Request.Headers.TryGetValue(
-                GatewayConstants.CorrelationIdHeader,
-                out var providedCorrelationId) &&
-            !string.IsNullOrWhiteSpace(providedCorrelationId.ToString())
-                ? providedCorrelationId.ToString()
-                : Guid.NewGuid().ToString("N");
+        var correlationId = TryGetSafeCorrelationId(context.Request, out var providedCorrelationId)
+            ? providedCorrelationId
+            : Guid.NewGuid().ToString("N");
 
         context.Items[GatewayConstants.CorrelationIdHeader] = correlationId;
         context.Response.OnStarting(() =>
@@ -53,6 +50,27 @@ public sealed class GatewayEdgeMiddleware(RequestDelegate next)
         });
 
         await next(context);
+    }
+
+    private static bool TryGetSafeCorrelationId(HttpRequest request, out string value)
+    {
+        value = string.Empty;
+        if (!request.Headers.TryGetValue(GatewayConstants.CorrelationIdHeader, out var values) ||
+            values.Count != 1)
+        {
+            return false;
+        }
+
+        var candidate = values[0];
+        if (string.IsNullOrWhiteSpace(candidate) ||
+            candidate.Length > GatewayConstants.MaxCorrelationIdLength ||
+            candidate.Any(character => character is < '\x21' or > '\x7e'))
+        {
+            return false;
+        }
+
+        value = candidate;
+        return true;
     }
 }
 
@@ -185,8 +203,11 @@ public sealed class GatewaySessionValidationMiddleware(
         }
         catch (Exception exception)
         {
-            // Never take the stream down because the watchdog itself failed.
-            logger.LogWarning(exception, "Realtime session watchdog stopped unexpectedly.");
+            // Session validation is the authority for a long-lived private stream. If it
+            // becomes unavailable or returns an unexpected failure, keeping the stream open
+            // would turn a validator fault into an authorization fail-open.
+            logger.LogWarning(exception, "Realtime session watchdog failed; closing the stream.");
+            await watchdog.CancelAsync();
         }
     }
 

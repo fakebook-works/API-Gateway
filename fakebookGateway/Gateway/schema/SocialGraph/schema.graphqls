@@ -720,7 +720,7 @@ input CreateShareStoryInput {
 input CreateUserInput {
   name: String!
   gender: Boolean!
-  birthdate: String!
+  birthdate: LocalDate!
   location: String!
   email: String!
   password: String!
@@ -774,7 +774,7 @@ input UpdateUserInput {
   name: String
   bio: String
   gender: Boolean
-  birthdate: String
+  birthdate: LocalDate
   location: String
   privacy: Int
 }
@@ -788,6 +788,10 @@ scalar FieldSet
 "The `Long` scalar type represents a signed 64-bit integer."
 scalar Long
   @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
+
+"The `LocalDate` scalar type represents a date without time or time zone information."
+scalar LocalDate
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-date.html")
 
 "The `Short` scalar type represents a signed 16-bit integer."
 scalar Short
