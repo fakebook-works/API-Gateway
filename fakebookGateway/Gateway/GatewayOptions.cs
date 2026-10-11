@@ -8,6 +8,8 @@ public sealed class GatewayOptions
     public const string SectionName = "Gateway";
 
     public string FusionArchivePath { get; set; } = "gateway.far";
+    /// <summary>Reject social and commerce mutations while keeping account access available.</summary>
+    public bool ReadOnlyMode { get; set; }
     public string AuthenticationGraphQLEndpoint { get; set; } = "http://localhost:1001/graphql";
     public string InternalSharedSecret { get; set; } = string.Empty;
     public SubgraphSecretsOptions SubgraphSecrets { get; set; } = new();

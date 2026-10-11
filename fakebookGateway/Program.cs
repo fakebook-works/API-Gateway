@@ -251,6 +251,7 @@ builder.Services.AddCors(options =>
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
+            .WithExposedHeaders(ReadOnlyModeMiddleware.StatusHeader)
             .AllowCredentials();
     });
 });
@@ -371,12 +372,23 @@ app.UseAuthorization();
 // After authentication so the GraphQL limiter can partition by the caller's user_id claim.
 app.UseRateLimiter();
 app.UseMiddleware<GatewaySessionValidationMiddleware>();
+app.UseMiddleware<ReadOnlyModeMiddleware>();
 app.UseMiddleware<GraphQlCookieResponseMiddleware>();
 
 app.MapGraphQL("/graphql")
     .WithOptions(options => options.Tool.Enable = app.Environment.IsDevelopment())
     .RequireRateLimiting(GraphQlRateLimitPolicy);
 app.MapPaymentWebhookProxy();
+app.MapGet("/site-status", (HttpRequest request, HttpResponse response, IOptionsMonitor<GatewayOptions> options) =>
+{
+    if (request.ContentLength is > 0 || request.Headers.TransferEncoding.Count > 0)
+    {
+        return Results.StatusCode(StatusCodes.Status400BadRequest);
+    }
+
+    response.Headers.CacheControl = "no-store";
+    return Results.Json(new { readOnly = options.CurrentValue.ReadOnlyMode });
+}).RequireRateLimiting(GraphQlRateLimitPolicy);
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("live")
