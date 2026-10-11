@@ -1,6 +1,6 @@
 # Fakebook API Gateway
 
-Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 8 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
+Fakebook API Gateway is the public GraphQL entry point for the Fakebook backend. It is a .NET 10 HotChocolate Fusion Gateway that composes backend subgraphs and forwards frontend requests to the correct service.
 
 The composed subgraphs are `Authentication`, `SocialGraph`, `Recommendation`, `Search`, `Messaging`, `Notification`, and `Payment`. `Media` remains a direct upload service rather than a composed subgraph.
 
@@ -54,6 +54,7 @@ Gateway__SubgraphSecrets__Messaging=<optional Messaging-specific secret>
 Gateway__SubgraphSecrets__Notification=<optional Notification-specific secret>
 Gateway__SubgraphSecrets__Payment=<optional Payment-specific secret>
 Gateway__SessionCacheSeconds=30
+Gateway__ReadOnlyMode=false
 Gateway__RefreshTokenCookieName=fb_refresh
 Subgraphs__Authentication__Url=http://localhost:1001/graphql
 Subgraphs__SocialGraph__Url=http://localhost:1002/graphql
@@ -69,6 +70,13 @@ PaymentGateway__WebhookWindowSeconds=60
 ```
 
 ## Run Locally
+
+Set `Gateway__ReadOnlyMode=true` to pause registration and social writes. Gateway rejects
+GraphQL mutations with error code `READ_ONLY`, except account access and recovery actions
+such as login, refresh, logout, verification, and password reset. Queries remain available,
+including posts for existing accounts. The frontend reads `X-Fakebook-Read-Only` on GraphQL
+responses; `GET /site-status` also returns `{ "readOnly": true | false }` with no caching.
+Change the setting in Gateway configuration and restart or reload Gateway to restore writes.
 
 Start all composed subgraphs first, then run the Gateway. Both committed archives use the
 canonical loopback ports. Development composition writes `gateway.local.far` and
